@@ -1,0 +1,20 @@
+[
+  { "query": "the /reports endpoint takes 12 seconds, I think it's the ORM doing a query per row — can you fix it", "should_trigger": true },
+  { "query": "add a nightly job that expires unpaid invoices after 30 days; we run 3 instances of the api", "should_trigger": true },
+  { "query": "we're getting duplicate rows in the subscriptions table when stripe retries the webhook", "should_trigger": true },
+  { "query": "write the migration to split full_name into first_name and last_name without downtime", "should_trigger": true },
+  { "query": "implement the transfer-funds use case in our spring boot service with proper transaction handling", "should_trigger": true },
+  { "query": "Redis cache for product details — add it and make sure prices update when an admin edits them", "should_trigger": true },
+  { "query": "our Celery worker sometimes processes the same task twice, how do we make the handler safe", "should_trigger": true },
+  { "query": "add structured logging with a correlation id across the Go services", "should_trigger": true },
+  { "query": "the integration tests use H2 but prod is Postgres and a unique-index bug slipped through, set up testcontainers", "should_trigger": true },
+  { "query": "o serviço de pagamentos às vezes cobra duas vezes, investiga o PaymentService", "should_trigger": true },
+  { "query": "what HTTP status and error body should POST /orders return when an item is out of stock", "should_trigger": false },
+  { "query": "should we split the monolith into order and inventory microservices?", "should_trigger": false },
+  { "query": "review the login endpoint for security problems like brute force and user enumeration", "should_trigger": false },
+  { "query": "the orders table in the admin UI doesn't update after I cancel an order", "should_trigger": false },
+  { "query": "build an eval set for our support chatbot's refund answers", "should_trigger": false },
+  { "query": "set up the branch model and CI gates for this repo", "should_trigger": false },
+  { "query": "document the GraphQL schema for the catalog and version the breaking change", "should_trigger": false },
+  { "query": "our design tokens are out of sync between Figma and the CSS variables", "should_trigger": false }
+]

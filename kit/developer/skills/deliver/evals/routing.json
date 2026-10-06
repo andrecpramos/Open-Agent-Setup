@@ -1,0 +1,15 @@
+{
+  "$comment": "Delegation: does a real agent hand reviews and gate runs to the right subagent, run multi-step work through deliver, and leave small asks alone? Cases run in the fixture (a small invoicing API with an uncommitted delete route). `need`: must activate at some point; `a|b` accepts either.",
+  "scope": ["deliver", "gates", "architecture", "agent:scout", "agent:code-reviewer", "agent:security-reviewer", "agent:architecture-reviewer", "agent:gate-runner"],
+  "fixture": "fixture",
+  "cases": [
+    { "id": "security-review-of-diff", "prompt": "Security review my uncommitted changes before I merge them.", "need": ["agent:security-reviewer"] },
+    { "id": "code-review-of-diff", "prompt": "Review my uncommitted changes for bugs before I commit them.", "need": ["agent:code-reviewer"] },
+    { "id": "design-review", "prompt": "I want to add a job queue with Redis so invoice PDFs are generated in the background. Review whether that fits this codebase's architecture before I build it.", "need": ["agent:architecture-reviewer|architecture"] },
+    { "id": "merge-safe", "prompt": "Are we merge-safe? Run everything CI would run and give me a verdict.", "need": ["agent:gate-runner|gates"] },
+    { "id": "feature-through-deliver", "prompt": "Add an endpoint that exports an organisation's invoices as CSV, with tests.", "need": ["deliver"] },
+    { "id": "risky-feature-through-deliver", "prompt": "Let organisation admins mark invoices as void, and keep a record of who did it.", "need": ["deliver"] },
+    { "id": "typo-stays-small", "prompt": "Fix the typo 'Invoce' in the 404 message in src/server.mjs.", "none": true },
+    { "id": "question-stays-small", "prompt": "What is the session timeout in this app?", "none": true }
+  ]
+}

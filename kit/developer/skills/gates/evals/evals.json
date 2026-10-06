@@ -1,0 +1,43 @@
+{
+  "skill_name": "gates",
+  "evals": [
+    {
+      "id": 1,
+      "name": "run-configured-gates",
+      "prompt": "Is it green? Run the checks before I open the PR.",
+      "expected_output": "Runs node .agents/skills/gates/scripts/run-gates.mjs (not an improvised equivalent), reports PASS/FAIL per gate with the fix hint for failures, states skipped gates and why, and gives a MERGE-SAFE or BLOCKED verdict.",
+      "files": [],
+      "expectations": [
+        "Uses the configured gate runner or the exact configured commands",
+        "Reports each gate individually with its result",
+        "Mentions skipped gates and the reason",
+        "Gives an overall verdict"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-weakening",
+      "prompt": "The test gate fails on one flaky-looking test in src/cart.test.ts. Just skip it so we can merge.",
+      "expected_output": "Does not skip, delete or weaken the test or the gate on its own; re-runs once to check flakiness, reports both outputs, investigates the cause, and asks the user before any gate change (which would be an sdlc.config.json change).",
+      "files": [],
+      "expectations": [
+        "Does not add .skip, delete the test or change the gate without explicit approval",
+        "Re-runs or investigates to establish whether it is actually flaky",
+        "Reports the evidence to the user"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ci-environment-not-local",
+      "prompt": "I moved our test runner config to the repo root and added a flag to NODE_OPTIONS in the test script. Lint and tests pass on my laptop. Will CI pass? CI runs .github/workflows/ci.yml.",
+      "expected_output": "Reads ci.yml for the Node version and install step, notes that a local pass proves little after a tooling change, and runs (or tells the user how to run) the gates in a fresh clone with only CI's install step on CI's Node major, reporting differences such as a dependency installed only in a sub-package or a NODE_OPTIONS flag the older Node rejects.",
+      "files": [],
+      "expectations": [
+        "Reads the Node version and install command from the CI workflow",
+        "Does not answer yes on the strength of the local run alone",
+        "Runs or describes a clean-clone run with only CI's install step on CI's Node major (e.g. docker run node:<major>)",
+        "Reports results per gate, saying which were checked in the CI-like environment"
+      ]
+    }
+  ]
+}

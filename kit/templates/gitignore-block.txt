@@ -1,0 +1,9 @@
+# agent-setup:begin
+# Local agent state — see .agents/learnings/README.md
+.agents/learnings/signals.jsonl
+.agents/learnings/eval-windows.jsonl
+.agents/learnings/eval-history.jsonl
+.agents/learnings/live-session.json
+{{CLAUDE_LOCAL}}
+{{AGENT_LINKS}}
+# agent-setup:end

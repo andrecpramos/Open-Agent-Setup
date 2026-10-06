@@ -1,0 +1,79 @@
+{
+  "$schema": "../sdlc.config.schema.json",
+  "version": 1,
+
+  "_comment": "A small single-package library on a trunk model. The minimum that is still useful: one branch, four gates, no shared tree. Note that `integration` is omitted — the loader collapses it to `production` for the trunk model, so nothing downstream needs to special-case it.",
+
+  "project": {
+    "name": "example-lib",
+    "kind": "library",
+    "stack": ["TypeScript", "Node 20"],
+    "packageManager": "npm",
+    "runtime": "node>=20"
+  },
+
+  "branching": {
+    "model": "trunk",
+    "production": "main",
+    "featurePrefix": "feature/",
+    "releaseOnRequestOnly": true
+  },
+
+  "sharedTree": false,
+
+  "commits": {
+    "convention": "conventional",
+    "scopes": ["core", "api", "docs", "ci"]
+  },
+
+  "gates": [
+    {
+      "id": "format",
+      "title": "Formatting",
+      "command": "npm run format:check",
+      "blocking": true,
+      "fix": "npm run format"
+    },
+    {
+      "id": "lint",
+      "title": "Lint",
+      "command": "npm run lint",
+      "blocking": true,
+      "rule": "2",
+      "fix": "npm run lint -- --fix, then read what is left by hand"
+    },
+    {
+      "id": "typecheck",
+      "title": "Types",
+      "command": "npm run typecheck",
+      "blocking": true
+    },
+    {
+      "id": "test",
+      "title": "Unit tests",
+      "command": "npm test",
+      "blocking": true
+    },
+    {
+      "id": "audit",
+      "title": "Dependency CVEs",
+      "command": "npm audit --audit-level high",
+      "blocking": false,
+      "fix": "npm audit fix, or record an accepted risk in .ai/security.md with an owner"
+    }
+  ],
+
+  "docs": {
+    "root": ".ai",
+    "rules": ".ai/rules.md",
+    "decisions": ".ai/decisions"
+  },
+
+  "postEdit": [
+    {
+      "paths": ["src/**/*.ts"],
+      "run": "npm run typecheck",
+      "timeoutMs": 8000
+    }
+  ]
+}

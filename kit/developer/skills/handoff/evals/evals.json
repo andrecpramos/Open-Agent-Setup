@@ -1,0 +1,18 @@
+{
+  "skill_name": "handoff",
+  "evals": [
+    {
+      "id": 1,
+      "name": "mid-task-handoff",
+      "prompt": "I need to stop now, write a handoff so tomorrow we continue from here.",
+      "expected_output": "Gathers git facts (branch, ahead/behind, uncommitted files, stash), writes the handoff in the template with evidence for done items, exact next steps and open questions, to docs.plan or .agents/handoffs/, captures session lessons, and tells the user where it is.",
+      "files": [],
+      "expectations": [
+        "Includes the branch and uncommitted-file state from git, not from memory",
+        "Each done item has evidence",
+        "Next steps are concrete and ordered",
+        "States where the handoff was written"
+      ]
+    }
+  ]
+}

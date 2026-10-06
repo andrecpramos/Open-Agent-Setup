@@ -1,0 +1,20 @@
+[
+  { "query": "the checkout page flickers every time the cart refetches in the background, it's in src/app/checkout/page.tsx", "should_trigger": true },
+  { "query": "Add pagination to the users table in the admin dashboard (React + TanStack Query), page size 25, keep the page in the URL", "should_trigger": true },
+  { "query": "our Vue settings form doesn't show validation errors from the backend, the API returns 422 with field errors", "should_trigger": true },
+  { "query": "Make the dropdown menu in Header.tsx keyboard accessible, right now you can't open it with Enter", "should_trigger": true },
+  { "query": "LCP on the product page is 4.8s on mobile, can you figure out why and fix it", "should_trigger": true },
+  { "query": "Convert this class component to hooks and make sure the subscription is cleaned up", "should_trigger": true },
+  { "query": "after saving a profile the sidebar still shows the old name until I refresh", "should_trigger": true },
+  { "query": "write playwright tests for the login flow including the wrong-password case", "should_trigger": true },
+  { "query": "hydration error: Text content does not match server-rendered HTML on the dashboard in next.js", "should_trigger": true },
+  { "query": "implementa um modal de confirmação para apagar o jogador, com foco e tecla escape", "should_trigger": true },
+  { "query": "Add a new color token for warning surfaces in both light and dark themes and update the Tailwind config", "should_trigger": false },
+  { "query": "Design the REST endpoints for creating and cancelling orders, including error format and pagination", "should_trigger": false },
+  { "query": "Make our landing page look more premium and less generic — pick a visual direction", "should_trigger": false },
+  { "query": "Write a Postgres migration adding a nullable column to the orders table without locking it", "should_trigger": false },
+  { "query": "Review this PR diff for security issues, especially the new OAuth callback", "should_trigger": false },
+  { "query": "Set up a GitHub Actions workflow that runs lint and tests on every PR", "should_trigger": false },
+  { "query": "Our shared Button component needs size and variant props that every team can use", "should_trigger": false },
+  { "query": "Why is the /api/orders endpoint returning 500 when the payload has no items?", "should_trigger": false }
+]

@@ -1,0 +1,4 @@
+# LF in the repository and in every checkout. The kit writes LF (vendor sync rebuilds
+# kit/ byte for byte), and Git for Windows' default core.autocrlf=true would otherwise turn
+# every checkout into CRLF.
+* text=auto eol=lf

@@ -1,0 +1,20 @@
+[
+  { "query": "design the REST API for a booking system: rooms, reservations, cancellations, with pagination", "should_trigger": true },
+  { "query": "the frontend types and the backend DTOs keep drifting, how do we generate the client from openapi and check it in CI", "should_trigger": true },
+  { "query": "POST /orders returns 500 when quantity is a string — make it return a proper validation error", "should_trigger": true },
+  { "query": "add an Idempotency-Key header to our checkout endpoint so retries don't double charge", "should_trigger": true },
+  { "query": "we need to rename a field in our public API, how do we do it without breaking partners", "should_trigger": true },
+  { "query": "implement stripe webhook handling for invoice.paid in our fastify app", "should_trigger": true },
+  { "query": "wrap the SendGrid SDK so our domain code doesn't depend on it directly", "should_trigger": true },
+  { "query": "our graphql server does one DB query per order when fetching customers, add dataloaders and query depth limits", "should_trigger": true },
+  { "query": "add rate limiting middleware to the public endpoints of the gateway", "should_trigger": true },
+  { "query": "should errors be 400 or 422 in our API? standardize the error body across services", "should_trigger": true },
+  { "query": "the orders migration locks the table for 10 minutes, rewrite it", "should_trigger": false },
+  { "query": "our React form doesn't disable the submit button while saving", "should_trigger": false },
+  { "query": "pentest-style review of the auth module for session fixation and JWT issues", "should_trigger": false },
+  { "query": "should we use a message bus or direct calls between billing and inventory? write an ADR", "should_trigger": false },
+  { "query": "set up our design tokens in Style Dictionary", "should_trigger": false },
+  { "query": "our LLM classifier accuracy dropped after the prompt change — build an eval", "should_trigger": false },
+  { "query": "write the handoff notes for this session", "should_trigger": false },
+  { "query": "optimize the slow SQL query behind the monthly report", "should_trigger": false }
+]

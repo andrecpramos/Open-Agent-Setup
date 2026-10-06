@@ -1,0 +1,45 @@
+{
+  "skill_name": "api-design",
+  "evals": [
+    {
+      "id": 1,
+      "name": "rename-field-without-breaking",
+      "prompt": "Rename `customer_name` to `customerName` in the GET /orders response to match the rest of the API. The iOS app and two partner integrations read this endpoint.",
+      "expected_output": "Recognises a breaking change for external consumers; proposes an additive migration (return both fields, mark the old one deprecated in the OpenAPI spec with Deprecation/Sunset or a changelog entry, remove later in a new version) and asks for or flags the user's decision on the removal date rather than just renaming.",
+      "files": [],
+      "expectations": [
+        "Identifies the rename as a breaking change for existing consumers",
+        "Keeps the old field populated during a deprecation period instead of removing it immediately",
+        "Updates the API contract artefact (OpenAPI/spec) to mark the old field deprecated",
+        "Surfaces the removal timing as a decision for the user"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "create-payment-endpoint",
+      "prompt": "Add POST /payments to our Express API: body {orderId, amountCents, currency}. It calls Stripe. The mobile app retries requests on timeout.",
+      "expected_output": "Validates the body with size and type limits, derives the payer from the authenticated user and checks they own the order, supports an Idempotency-Key header persisted with a unique constraint, wraps Stripe behind an adapter with a timeout and passes Stripe's own idempotency key, returns 201 with Location on success and problem-details errors (400/401/403/404/409/422), and does not trust amountCents from the client without checking it against the order.",
+      "files": [],
+      "expectations": [
+        "Implements or requires an Idempotency-Key so a retried request does not charge twice",
+        "Checks that the authenticated user owns the order (object-level authorisation)",
+        "Does not trust the client-supplied amount — validates it against the order",
+        "Stripe calls go through an adapter with a timeout rather than SDK calls inline in the route handler",
+        "Errors use a consistent machine-readable format with correct 4xx status codes"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "inbound-webhook-handler",
+      "prompt": "We need an endpoint that receives GitHub webhooks for push events and triggers a deploy job.",
+      "expected_output": "Verifies X-Hub-Signature-256 HMAC over the raw body with a constant-time compare, rejects invalid signatures, deduplicates by X-GitHub-Delivery id, acknowledges quickly with 2xx and enqueues the deploy asynchronously, allow-lists the event type and repository/branch, and keeps the secret in configuration.",
+      "files": [],
+      "expectations": [
+        "Verifies the HMAC signature against the raw request body using a constant-time comparison",
+        "Deduplicates deliveries by the delivery id",
+        "Responds quickly and does the deploy asynchronously",
+        "Reads the webhook secret from configuration, not from source code"
+      ]
+    }
+  ]
+}

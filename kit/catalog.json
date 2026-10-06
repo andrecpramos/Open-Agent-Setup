@@ -1,0 +1,63 @@
+{
+  "$comment": "Every skill, agent and hook in the kit, the roles they serve, and the install profiles. A skill's or agent's role is the folder it lives in (kit/developer/ or kit/admin/); a hook's role is recorded here, because the hooks share one runtime folder. The installer reads this; `agent-setup lint` checks it against the tree. Profiles list skill names or @group; the `core` list is always installed, and so is every admin skill when the admin role is. Which skills are vendored (rebuilt from upstream, never hand-edited) is recorded in kit/vendor.json, not here.",
+  "roles": {
+    "developer": "What developers' agents use day to day: the domain skills, the delivery workflow, the review team and the guard hooks. Always installed.",
+    "admin": "Whoever sets the kit up and keeps it improving: sdlc-init, the enforcement audit, the learning loop and the session recorder. Its skills run only when invoked by name, so they cost developer sessions nothing. Installed unless --roles developer."
+  },
+  "groups": {
+    "domain": "Engineering expertise, written for this kit: loads when the work matches the domain",
+    "core": "The delivery workflow — installed in every project",
+    "design": "UI build direction and real-browser verification — opt-in",
+    "admin": "Setup, audit and the learning loop — the admin role"
+  },
+  "skills": {
+    "frontend": { "group": "domain", "summary": "UI components, pages, forms, client/server state, accessibility, frontend performance and tests" },
+    "backend": { "group": "domain", "summary": "Domain logic, persistence, migrations, transactions, concurrency, jobs, caching, observability" },
+    "api-design": { "group": "domain", "summary": "The middle layer: HTTP/GraphQL/gRPC contracts, BFFs, middleware, webhooks, third-party integrations" },
+    "security": { "group": "domain", "summary": "Threat modelling, secure implementation, and security review of a change" },
+    "architecture": { "group": "domain", "summary": "Boundaries, dependency rules, trade-off decisions and ADRs" },
+    "design-system": { "group": "domain", "summary": "Tokens, theming, shared components, and the checks that keep UI on-system" },
+    "agent-eval": { "group": "domain", "summary": "Evals for prompts, agents, LLM features and skills; baselines and regression gates" },
+    "deliver": { "group": "core", "summary": "The delivery cycle for larger or risky changes: brief, plan, build in verified steps, review, report" },
+    "gates": { "group": "core", "summary": "Run the repo's gates exactly as CI does, cheapest first, and report PASS/FAIL" },
+    "ship-it": { "group": "core", "summary": "Commit and open a PR the way this repo expects — never into production uninvited" },
+    "handoff": { "group": "core", "summary": "Write a precise handoff so the next session continues without re-deriving context" },
+    "design-taste-frontend": { "group": "design", "summary": "UI build direction: brief inference, design dials, anti-slop rules, pre-flight check" },
+    "agent-browser": { "group": "design", "summary": "Real-browser verification: screenshots, theme emulation, console, axe audit" },
+    "sdlc-init": { "group": "admin", "summary": "Survey the repo; write its SDLC contract, knowledge base, overlays and gap register" },
+    "self-improve": { "group": "admin", "summary": "Route captured lessons to where they are enforced; export kit improvements" },
+    "enforcement-audit": { "group": "admin", "summary": "Audit what the repo claims against what it enforces; ranked gap register" }
+  },
+  "agents": {
+    "scout": { "requires": [], "step": "Explore", "when": "more than a handful of files to read; \"where is…\", \"how does…\", \"what uses…\"", "summary": "Read-only exploration in its own context; returns a file:line map, not file contents" },
+    "code-reviewer": { "requires": [], "step": "Review", "when": "a change across several files or layers, or one that is risky — before you report it done", "summary": "Read-only review of a diff against its brief: correctness, tests, scope; ranked findings" },
+    "security-reviewer": { "requires": ["security"], "step": "Review", "when": "auth, sessions, permissions, payments, personal data, uploads, outbound requests, webhooks, LLM tools", "summary": "Read-only security review of a diff; ranked, evidenced findings" },
+    "architecture-reviewer": { "requires": ["architecture"], "step": "Review", "when": "a new module, dependency, service, queue or datastore; a change that crosses layers", "summary": "Read-only boundary and dependency review of a change" },
+    "gate-runner": { "requires": ["gates"], "step": "Verify", "when": "before a commit or PR, or when a full gate run would flood the conversation", "summary": "Runs the gates in its own context and returns MERGE-SAFE or BLOCKED" },
+    "docs-keeper": { "requires": ["sdlc-init"], "step": "Docs", "when": "after a structural change, and before a release", "summary": "Verifies .agents/docs claims against the tree and fixes drift" }
+  },
+  "hooks": {
+    "setup-clone": { "role": "developer", "summary": "Per clone: links the skills into .claude/skills for Claude Code (its session start runs it)" },
+    "run-hook": { "role": "developer", "summary": "Runs the hooks in Codex, Cursor, GitHub Copilot, Antigravity and Windsurf, translating each agent's hook format" },
+    "guard-git": { "role": "developer", "summary": "Denies production writes, force-pushes to shared branches, discarding uncommitted work and hook bypasses — naming the alternative" },
+    "check-gates": { "role": "developer", "summary": "Runs the fast check an edit could have broken, right after the edit" },
+    "stop-check": { "role": "developer", "summary": "Asks once for a check when the agent finishes with code changed after the last one" },
+    "prompt-intake": { "role": "developer", "summary": "A large or risky request (auth, payments, data, production, secrets) → the agent writes a brief first" },
+    "branch-check": { "role": "developer", "summary": "Speaks at session start only when the branch needs attention: production, detached, stale, or a wrong config" },
+    "session-eval": { "role": "admin", "summary": "Records one row of facts per context window, at no token cost" },
+    "learning-signals": { "role": "admin", "summary": "Notes corrections for the learnings inbox, keeps a friction log, stops a command failing three times" },
+    "context-budget": { "role": "admin", "summary": "Past the token budget, asks the agent to delegate, read narrowly and hand off" }
+  },
+  "core": ["deliver", "gates", "ship-it", "handoff"],
+  "defaultProfile": "standard",
+  "profiles": {
+    "standard": { "description": "The general engineering skills and the delivery workflow.", "skills": ["frontend", "backend", "api-design", "security", "architecture"] },
+    "full": { "description": "Every skill in the kit.", "skills": "*" },
+    "web": { "description": "Full-stack web product, with UI build direction and browser verification.", "skills": ["frontend", "backend", "api-design", "security", "architecture", "design-system", "@design"] },
+    "frontend": { "description": "Frontend app or site, with UI build direction and browser verification.", "skills": ["frontend", "design-system", "api-design", "security", "@design"] },
+    "service": { "description": "Backend service or API.", "skills": ["backend", "api-design", "security", "architecture"] },
+    "ai-app": { "description": "Product with LLM or agent features.", "skills": ["backend", "api-design", "security", "architecture", "agent-eval"] },
+    "library": { "description": "Library, SDK or CLI.", "skills": ["architecture", "security", "api-design"] },
+    "minimal": { "description": "The delivery workflow only.", "skills": [] }
+  }
+}

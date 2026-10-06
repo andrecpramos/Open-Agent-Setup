@@ -1,0 +1,39 @@
+{
+  "name": "agent-setup",
+  "version": "2.0.0",
+  "description": "A portable, self-improving workflow for coding agents: brief, plan, build, verify, review, report — expert skills, a review team of subagents, enforcing hooks, AGENTS.md/CLAUDE.md, and a measurement loop that compares the kit with vanilla and feeds improvements back.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "agent-setup": "bin/agent-setup.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "kit/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "node node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json",
+    "test": "npm run build && node scripts/test.mjs",
+    "lint": "node bin/agent-setup.mjs lint",
+    "check": "npm run build && node bin/agent-setup.mjs lint && npm run typecheck && node scripts/test.mjs"
+  },
+  "author": "André Ramos",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrecpramos/Open-Agent-Setup.git"
+  },
+  "homepage": "https://github.com/andrecpramos/Open-Agent-Setup#readme"
+}

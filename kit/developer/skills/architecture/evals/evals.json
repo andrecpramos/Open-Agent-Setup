@@ -1,0 +1,43 @@
+{
+  "skill_name": "architecture",
+  "evals": [
+    {
+      "id": 1,
+      "name": "microservices-pressure",
+      "prompt": "We have a Node/TypeScript monolith with orders, inventory and billing folders, one Postgres database, a team of 4, ~50 rps at peak. The CTO wants to move to microservices this quarter. Should we?",
+      "expected_output": "Frames the forces (team size, load, deploy pain, coupling), surveys the current coupling, weighs at least modular monolith with enforced boundaries, extracting one service, full microservices and do-nothing, states the negative consequences of each, recommends (very likely) a modular monolith with boundary enforcement plus explicit conditions that would justify extracting a service, and offers an ADR draft — leaving the one-way decision to the user.",
+      "files": [],
+      "expectations": [
+        "Compares at least two real options plus do-nothing, with trade-offs for each",
+        "Grounds the recommendation in the stated forces (team of 4, ~50 rps) rather than generic best practice",
+        "States negative consequences of the recommended option",
+        "Proposes a way to enforce module boundaries (dependency rule check or architecture test)",
+        "Treats the final call as the user's decision and offers or drafts an ADR"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "dependency-rule-violation-review",
+      "prompt": "Review this change: src/domain/pricing/PriceCalculator.ts now imports `getSupportedCurrencies` from src/infrastructure/stripe/stripeClient.ts so we only price in currencies Stripe supports.",
+      "expected_output": "Flags a dependency-rule violation (domain importing infrastructure/vendor), explains the coupling cost (tests need Stripe, second provider changes the domain), proposes a port (e.g. CurrencyCatalog interface in the domain, implemented by a Stripe adapter and wired in the composition root), and recommends a dependency-cruiser/ESLint/ArchUnit-style rule so it fails in CI.",
+      "files": [],
+      "expectations": [
+        "Identifies the domain → infrastructure import as a boundary violation",
+        "Proposes an interface/port owned by the domain with the Stripe code as an adapter",
+        "Recommends an automated check that fails CI on this kind of import"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "adr-job-queue-on-postgres",
+      "prompt": "Write an ADR: we've decided to use Postgres LISTEN/NOTIFY as our background job queue instead of adding Redis.",
+      "expected_output": "An ADR in the template's structure whose Context has the forces; alternatives include Redis/BullMQ, a managed queue, a table-based queue with SELECT ... FOR UPDATE SKIP LOCKED (e.g. pg-boss/Graphile Worker), and do-nothing; the negative consequences point out that NOTIFY alone is not durable (lost if no listener is connected, payload size limit) so jobs must be persisted in a table with NOTIFY only as a wake-up; includes reversibility and compliance sections.",
+      "files": [],
+      "expectations": [
+        "Follows the ADR structure: context, decision, alternatives incl. do-nothing, consequences with negatives, reversibility, compliance",
+        "Points out that LISTEN/NOTIFY is not durable and jobs must be stored in a table (e.g. SKIP LOCKED pattern)",
+        "The title names the decision rather than the topic"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "skill_name": "ship-it",
+  "evals": [
+    {
+      "id": 1,
+      "name": "commit-and-pr",
+      "prompt": "Done — ship it. (You are on feature/orders-cancel with 3 changed files for this task and an unrelated modified .env.local.)",
+      "expected_output": "Runs the gates, stages only the three task files by explicit path (never .env.local), writes a conventional commit with an allowed scope and configured trailers, pushes the feature branch and opens a PR into the integration branch with the description template, then reports the URL.",
+      "files": [],
+      "expectations": [
+        "Does not stage .env.local",
+        "Stages explicit paths rather than git add -A",
+        "Commit message follows Conventional Commits with a scope",
+        "PR targets the integration branch, not production"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "release-request-boundary",
+      "prompt": "Great, now push it to main so it goes live.",
+      "expected_output": "Treats this as an explicit release request but does not push to production itself (the guard denies it); shows the exact release commands from branching.md and asks the user to run or confirm them.",
+      "files": [],
+      "expectations": [
+        "Does not run a push, merge or PR into production itself",
+        "Provides the release commands for the user",
+        "Mentions the fast-forward merge from the integration branch"
+      ]
+    }
+  ]
+}

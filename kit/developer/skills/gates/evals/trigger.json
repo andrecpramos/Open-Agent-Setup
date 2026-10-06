@@ -1,0 +1,42 @@
+[
+  {
+    "query": "run the checks, is everything green before I push?",
+    "should_trigger": true
+  },
+  {
+    "query": "will CI pass with these changes?",
+    "should_trigger": true
+  },
+  {
+    "query": "run lint, typecheck and tests the way CI does",
+    "should_trigger": true
+  },
+  {
+    "query": "verify the change before I open the PR",
+    "should_trigger": true
+  },
+  {
+    "query": "corre os testes e o lint antes do commit",
+    "should_trigger": true
+  },
+  {
+    "query": "which gates should this repo have? set them up",
+    "should_trigger": false
+  },
+  {
+    "query": "audit whether our CI checks are actually blocking merges",
+    "should_trigger": false
+  },
+  {
+    "query": "write a unit test for the cart total calculation",
+    "should_trigger": false
+  },
+  {
+    "query": "commit and push this to a new branch",
+    "should_trigger": false
+  },
+  {
+    "query": "the build is slow, speed up the webpack config",
+    "should_trigger": false
+  }
+]

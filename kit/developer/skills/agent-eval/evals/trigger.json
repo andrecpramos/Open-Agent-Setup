@@ -1,0 +1,20 @@
+[
+  { "query": "I changed the summarization prompt, how do I know it's actually better than the old one?", "should_trigger": true },
+  { "query": "our support chatbot started making up order numbers after we switched models, help me figure out what broke", "should_trigger": true },
+  { "query": "build a golden dataset and grader for our RAG pipeline answers", "should_trigger": true },
+  { "query": "set up a CI check that fails if the classifier accuracy drops compared to main", "should_trigger": true },
+  { "query": "how should we evaluate our coding agent's tool calls, not just the final answer", "should_trigger": true },
+  { "query": "is using an LLM as judge reliable for grading tone? how do I calibrate it", "should_trigger": true },
+  { "query": "test whether my new skill description actually triggers for the right requests", "should_trigger": true },
+  { "query": "we're upgrading from sonnet to a newer model — what do we need to re-validate?", "should_trigger": true },
+  { "query": "create adversarial test cases for prompt injection against our email assistant", "should_trigger": true },
+  { "query": "o agente de nutrição piorou desde a última versão do prompt, como medimos isso", "should_trigger": true },
+  { "query": "write unit tests for the date formatting utils", "should_trigger": false },
+  { "query": "our Playwright tests are flaky on CI, fix them", "should_trigger": false },
+  { "query": "add a streaming chat endpoint that proxies to the Anthropic API", "should_trigger": false },
+  { "query": "threat-model the new AI agent that can issue refunds", "should_trigger": false },
+  { "query": "record the lesson that we must always run the typecheck before committing", "should_trigger": false },
+  { "query": "the load test shows p95 latency of 3 seconds on the search endpoint", "should_trigger": false },
+  { "query": "write an ADR about moving our LLM calls behind a gateway", "should_trigger": false },
+  { "query": "run the gates before I open the PR", "should_trigger": false }
+]

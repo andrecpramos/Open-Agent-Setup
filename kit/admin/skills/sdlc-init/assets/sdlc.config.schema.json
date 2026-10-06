@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/andrecpramos/Open-Agent-Setup/kit/admin/skills/sdlc-init/assets/sdlc.config.schema.json",
+  "title": "SDLC configuration (agent-setup)",
+  "description": "The single machine-readable description of a repository's SDLC. Hooks, skills and agents read this file instead of hardcoding branch names and gate commands, which is what makes them portable. Lives at .agents/sdlc.config.json (a legacy .ai/sdlc.config.json is still read). Keys starting with an underscore are comments or markers (_comment, _provisional) and are ignored by the tooling.",
+  "type": "object",
+  "required": ["version", "branching", "gates"],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^_": { "description": "Comment or marker, e.g. _comment. Ignored by hooks and skills." }
+  },
+
+  "properties": {
+    "$schema": { "type": "string" },
+
+    "version": {
+      "const": 1,
+      "description": "Config format version. Bump only on a breaking change to this schema."
+    },
+
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": {
+        "name": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "description": "Free text: 'monorepo', 'library', 'service', 'mobile app', 'CLI'. Used only in generated prose."
+        },
+        "stack": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "e.g. [\"TypeScript\", \"Node 23\", \"pnpm\", \"Next.js\"]. The installer and /sdlc-init detect these; correct them by hand if they guess wrong."
+        },
+        "packageManager": {
+          "type": "string",
+          "enum": ["pnpm", "npm", "yarn", "bun", "cargo", "go", "uv", "poetry", "pip", "gradle", "maven", "dotnet", "other"]
+        },
+        "runtime": {
+          "type": "string",
+          "description": "Minimum runtime that actually works, not what the manifest claims. e.g. \"node>=23.6\"."
+        }
+      }
+    },
+
+    "branching": {
+      "type": "object",
+      "required": ["model", "production"],
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "description": "Which branch is production, where work lands, and whether an agent may move production on its own.",
+      "properties": {
+        "model": {
+          "enum": ["two-trunk", "trunk", "gitflow"],
+          "description": "two-trunk: production + integration (main/develop). trunk: one branch, short-lived feature branches. gitflow: adds release/* and hotfix/* lines."
+        },
+        "production": {
+          "type": "string",
+          "description": "The branch that is deployed. Never written by an agent unless releaseOnRequestOnly is false."
+        },
+        "integration": {
+          "type": "string",
+          "description": "Where day-to-day work lands and where feature branches are cut from. Omit for the trunk model; production is then also the integration branch."
+        },
+        "featurePrefix": {
+          "type": "string",
+          "default": "feature/",
+          "description": "Proposed prefix when the session hook suggests a branch name."
+        },
+        "hotfixPrefix": {
+          "type": "string",
+          "default": "hotfix/",
+          "description": "gitflow only: branches with this prefix may be cut from production (and merge into both lines)."
+        },
+        "releaseOnRequestOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "true = an agent never pushes, merges or opens a PR to a separate production branch on its own initiative (on a trunk, pull requests into it are the normal path). guard-git.mjs enforces it in Claude Code sessions; branch protection on the git host enforces it for everyone. false switches the production-write denials off."
+        },
+        "protectedRefs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Extra refs treated as production for guard purposes, e.g. [\"release/*\", \"staging\"]. Globs allowed."
+        }
+      }
+    },
+
+    "sharedTree": {
+      "type": "boolean",
+      "default": false,
+      "description": "true when more than one agent session works in this checkout at once. Enables the broad-staging denials (git add -A / . / -u, git commit -a, git stash without paths) and the 're-check status before committing' instruction."
+    },
+
+    "commits": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": {
+        "convention": {
+          "enum": ["conventional", "none"],
+          "default": "conventional"
+        },
+        "scopes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed commit scopes. Empty means unconstrained."
+        },
+        "trailers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Lines appended to every commit message, e.g. a Co-Authored-By trailer."
+        }
+      }
+    },
+
+    "gates": {
+      "type": "array",
+      "description": "Every check that must pass before work merges, cheapest first. /gates (run-gates.mjs) runs this list in order; the gate-runner agent runs it in its own context.",
+      "items": {
+        "type": "object",
+        "required": ["id", "command"],
+        "additionalProperties": false,
+        "patternProperties": { "^_": {} },
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Stable slug. Referenced by critical-infrastructure.md and by CI job names."
+          },
+          "title": { "type": "string", "description": "One line, human-facing." },
+          "command": { "type": "string", "description": "Exactly what CI runs. If it differs from CI, this file is lying." },
+          "blocking": {
+            "type": "boolean",
+            "default": true,
+            "description": "false = reported but does not block a merge. Be honest here; an advisory gate marked blocking is how a green build starts meaning nothing."
+          },
+          "rule": {
+            "type": "string",
+            "description": "The rule id from rules.md that this gate holds up. Omit if the gate enforces no stated rule."
+          },
+          "expectNonZero": {
+            "type": "boolean",
+            "default": false,
+            "description": "true for a command that exits non-zero by design and whose real verdict comes from a comparison step. Prevents a runner reporting a designed exit code as a failure."
+          },
+          "when": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Glob patterns. The gate runs only if the working diff touches a matching path. Omit to always run."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "description": "Kill the gate after this long (default 15 minutes) and report it as failed — an inconclusive gate fails closed."
+          },
+          "fix": {
+            "type": "string",
+            "description": "The first thing to try when this gate fails. Shown verbatim in the /gates failure report."
+          }
+        }
+      }
+    },
+
+    "docs": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": {
+        "root": { "type": "string", "default": ".agents", "description": "Where the knowledge base lives (.agents by default; .ai for a separate tool-agnostic tree)." },
+        "rules": { "type": "string", "default": ".agents/docs/rules.md", "description": "Path to the numbered invariant register. Point it at the existing document (and section) if the rules already live elsewhere." },
+        "decisions": { "type": "string", "default": ".agents/decisions", "description": "ADR directory." },
+        "plan": { "type": "string", "description": "The living work-schedule document, if the repo has one. Read by the handoff skill." }
+      }
+    },
+
+    "guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "description": "What the guards deny. Every denial names its correct alternative, so an agent retries without needing the user.",
+      "properties": {
+        "denyBroadStaging": { "type": "boolean", "description": "Defaults to the value of sharedTree." },
+        "denyProductionWrites": { "type": "boolean", "default": true },
+        "denyBranchFromProduction": { "type": "boolean", "default": true },
+        "denyCommitOnProduction": { "type": "boolean", "default": true, "description": "two-trunk/gitflow: deny commits while standing on a protected branch." },
+        "denyForcePushShared": { "type": "boolean", "default": true, "description": "Deny force-pushing or deleting the integration branch." },
+        "denyDiscardUncommitted": { "type": "boolean", "default": true, "description": "Deny reset --hard, checkout/restore of the whole tree, and clean -f when they would destroy uncommitted or untracked work." },
+        "denyNoVerify": { "type": "boolean", "default": true, "description": "Deny --no-verify on commit and push, and setting the git-hook escape variable — hooks exist to catch problems; the fix is the cause, not the hook." },
+        "extraDeny": {
+          "type": "array",
+          "description": "Repo-specific denials.",
+          "items": {
+            "type": "object",
+            "required": ["pattern", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "pattern": { "type": "string", "description": "JavaScript regular expression source, matched against the shell command with heredoc and here-string bodies stripped." },
+              "reason": { "type": "string" },
+              "instead": { "type": "string", "description": "The command the agent should run instead." }
+            }
+          }
+        }
+      }
+    },
+
+    "postEdit": {
+      "type": "array",
+      "description": "Fast checks surfaced immediately after an Edit/Write to a matching path. Keep this list short and the commands under a second — a hook that comments on every write becomes noise an agent learns to skim, which is worse than no hook.",
+      "items": {
+        "type": "object",
+        "required": ["paths"],
+        "additionalProperties": false,
+        "properties": {
+          "paths": { "type": "array", "items": { "type": "string" }, "description": "Glob patterns (**, *, ?, {a,b}) matched against the repo-relative edited path." },
+          "run": { "type": "string", "description": "Command to execute. Its output is shown only on failure." },
+          "remind": { "type": "string", "description": "Static text shown when a path matches. Use when there is no cheap command." },
+          "timeoutMs": { "type": "integer", "default": 5000 }
+        }
+      }
+    },
+
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The kit's workflow hooks. Change a default only with a reason.",
+      "properties": {
+        "sessionSummary": { "type": "boolean", "default": false, "description": "session-eval shows the person one line of eval metrics at session start (a systemMessage: the model never sees it). Off by default: the numbers are the admin's, read with agent-setup evals and report." },
+        "verifyBeforeStop": { "type": "boolean", "default": true, "description": "stop-check blocks the end of a turn once when code changed after the last passing check." },
+        "contextWarnTokens": { "type": "integer", "minimum": 0, "default": 150000, "description": "context-budget notes the agent when a window passes this many tokens, and again at each further multiple. 0 turns it off." },
+        "promptIntake": { "type": "boolean", "default": true, "description": "prompt-intake asks the agent to restate a large or risky task prompt (auth, payments, data, production, secrets) as a brief (goal, scope, acceptance, assumptions, risks) before its first edit." },
+        "promptCoach": { "type": "boolean", "deprecated": true, "description": "Retired in 3.0: prompt-intake no longer coaches the developer. Has no effect; delete it." },
+        "retroEvery": { "type": "integer", "minimum": 0, "default": 20, "description": "agent-setup report lists a retro as due after this many recorded context windows without one. 0 turns it off." },
+        "askBranch": { "type": "boolean", "default": false, "description": "branch-check tells the agent to ask the user which branch to work on before its first edit. Off by default: the agent decides (small work on the integration branch, larger work on a new feature branch) and names the branch in its brief." }
+      }
+    }
+  }
+}

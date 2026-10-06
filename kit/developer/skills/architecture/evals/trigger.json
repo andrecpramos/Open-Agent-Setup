@@ -1,0 +1,20 @@
+[
+  { "query": "should we split the notifications part of our monolith into its own service?", "should_trigger": true },
+  { "query": "where should the pricing rules live — in the orders module or a new pricing module?", "should_trigger": true },
+  { "query": "write an ADR for moving from REST polling to websockets for live match updates", "should_trigger": true },
+  { "query": "we want to add Kafka for events between services, is it worth it for a team of 3", "should_trigger": true },
+  { "query": "review this RFC for the multi-tenant data isolation design", "should_trigger": true },
+  { "query": "our domain layer imports Prisma types everywhere, how do we untangle it", "should_trigger": true },
+  { "query": "build vs buy: should we write our own feature-flag system or use a vendor", "should_trigger": true },
+  { "query": "draw the container diagram of the platform and explain the dependencies", "should_trigger": true },
+  { "query": "set up a lint rule so the core package can never import from the features packages", "should_trigger": true },
+  { "query": "devemos usar filas ou chamadas síncronas entre o módulo de pagamentos e o de inscrições?", "should_trigger": true },
+  { "query": "fix the N+1 query in the orders list endpoint", "should_trigger": false },
+  { "query": "what status code should DELETE return when the item is already gone", "should_trigger": false },
+  { "query": "make the modal close when pressing escape", "should_trigger": false },
+  { "query": "check this login handler for SQL injection", "should_trigger": false },
+  { "query": "run the gates and tell me if CI will pass", "should_trigger": false },
+  { "query": "create an eval dataset for the intent classifier", "should_trigger": false },
+  { "query": "add a spacing scale to our design tokens", "should_trigger": false },
+  { "query": "commit these changes and open a PR", "should_trigger": false }
+]

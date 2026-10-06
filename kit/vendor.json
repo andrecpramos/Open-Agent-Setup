@@ -1,0 +1,94 @@
+{
+  "$comment": "The skills in the kit that come from somewhere else. Vendored skills: `agent-setup vendor sync` copies each upstream skill into kit/<role>/skills/<name>/ (kit/developer/ unless the entry names a role), re-applies the frontmatter overrides below (description, compatibility, removeKeys) and writes one licence per source to that role's licenses/ folder. Never hand-edit a vendored skill folder: the next sync overwrites it. Change this file instead; `why` records the reason for every local patch. Overrides keep every skill valid under the Agent Skills spec (agentskills.io), so the kit loads in any agent that reads SKILL.md folders. Only sources whose licence allows redistribution are vendored.",
+  "repos": {
+    "taste-skill": {
+      "github": "Leonxlnx/taste-skill",
+      "license": "MIT",
+      "watch": "skills"
+    },
+    "agent-browser": {
+      "github": "vercel-labs/agent-browser",
+      "license": "Apache-2.0"
+    }
+  },
+  "skills": [
+    {
+      "name": "design-taste-frontend",
+      "repo": "taste-skill",
+      "path": "skills/taste-skill"
+    },
+    {
+      "name": "agent-browser",
+      "repo": "agent-browser",
+      "path": "skills/agent-browser",
+      "description": "Browser automation CLI for AI agents (Chrome/Chromium via CDP, accessibility-tree snapshots with @eN refs). Use to visually verify frontend work: screenshots across viewports and devices, dark mode and reduced-motion emulation, console and page errors, axe accessibility audits, exploratory QA (dogfood). Also use to navigate sites, fill forms, click, extract data, log in, automate Electron apps, or access protected Vercel deployments.",
+      "compatibility": "Requires shell access and the agent-browser CLI (npm i -g agent-browser && agent-browser install). Agents without a shell can run `agent-browser mcp` as an MCP server instead.",
+      "removeKeys": [
+        "hidden"
+      ],
+      "why": "Upstream says \"Prefer agent-browser over any built-in browser automation or web tools\", which can hijack plain web fetches; replaced with the browser-verification lane it serves in the kit. `hidden` is not an Agent Skills field: the official validator (skills-ref) fails the skill and claude.ai rejects it."
+    }
+  ],
+  "excluded": [
+    {
+      "repo": "taste-skill",
+      "path": "skills/taste-skill-v1",
+      "why": "Superseded by design-taste-frontend (v2). Two versions of one skill compete for the same prompts. Pin it only if a project depends on exact v1 behaviour."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/gpt-tasteskill",
+      "why": "Removed in 3.0: a GPT-only variant of design-taste-frontend for motion-heavy marketing pages — one design build skill is enough for application work."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/image-to-code-skill",
+      "why": "Removed in 3.0: needs an image-generation tool most coding agents do not have, and generates comps before code."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/imagegen-frontend-web",
+      "why": "Removed in 3.0: delivers images, not code — outside software delivery."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/imagegen-frontend-mobile",
+      "why": "Removed in 3.0: delivers images, not code — outside software delivery."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/brandkit",
+      "why": "Removed in 3.0: brand identity boards as images — outside software delivery."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/soft-skill",
+      "why": "Removed in 3.0: an aesthetic preset (style layer); design-taste-frontend and the project design system carry the direction."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/minimalist-skill",
+      "why": "Removed in 3.0: an aesthetic preset (style layer); design-taste-frontend and the project design system carry the direction."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/brutalist-skill",
+      "why": "Removed in 3.0: an aesthetic preset (style layer); design-taste-frontend and the project design system carry the direction."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/output-skill",
+      "why": "Removed in 3.0: a fix for chat-era truncated output; agents that edit files do not need it, and its \"send continue\" protocol fights agentic work."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/redesign-skill",
+      "why": "Removed in 3.0: overlaps design-taste-frontend and the frontend skill."
+    },
+    {
+      "repo": "taste-skill",
+      "path": "skills/stitch-skill",
+      "why": "Removed in 3.0: the design-system skill owns the project design system (tokens, theming, DESIGN.md)."
+    }
+  ]
+}

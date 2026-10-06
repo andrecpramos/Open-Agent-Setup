@@ -1,0 +1,19 @@
+{
+  "$comment": "Strict TypeScript for the CLI. src/**/*.mts is the source of truth; scripts/build.mjs typechecks and emits it into the committed lib/*.mjs and bin/*.mjs. typescript and @types/node are dev-only and never ship to projects. rootDirs lets src/ import a kit hook module by the path that is right at runtime (lib/ → ../kit/hooks/x.mjs); its types come from the .d.mts beside it.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "rootDirs": ["src", "."],
+    "outDir": ".build-ts",
+    "strict": true,
+    "isolatedModules": true,
+    "types": ["node"],
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.mts"]
+}

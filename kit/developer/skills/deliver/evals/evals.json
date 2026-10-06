@@ -1,0 +1,59 @@
+{
+  "skill_name": "deliver",
+  "evals": [
+    {
+      "id": 1,
+      "name": "vague-request-gets-a-brief",
+      "prompt": "listing invoices is really slow for big organisations, can you make it faster",
+      "expected_output": "Opens with a brief: goal (listing invoices stays fast for large organisations), scope (the list path in src/billing and src/db; not other endpoints), a measurable acceptance line (a timing or complexity target checked by a named test or measurement), assumptions marked as such, and risks. Asks at most two questions or states assumptions, and reads the list path (listInvoices filters every invoice in memory) before changing code.",
+      "files": [],
+      "expectations": [
+        "Starts with a brief that has a goal, a scope with something explicitly out of scope, and an acceptance line",
+        "The acceptance line is measurable (a number, a test or a command), not 'faster'",
+        "Asks at most two questions, or states its assumptions instead of asking",
+        "Reads the list path (src/db.mjs or src/billing/invoices.mjs) before proposing a fix, rather than guessing an optimisation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "risky-change-planned-and-reviewed",
+      "prompt": "Let organisation admins void an invoice, and keep a record of who voided it and when.",
+      "expected_output": "Writes a brief that names the risk (authorisation: only admins of the invoice's own organisation; an audit record that cannot be forged), plans before editing (the route, the role and organisation check, the record), writes negative tests (a non-admin, and an admin of another organisation, are refused), implements, runs the tests, and has the change reviewed by a security reviewer before calling it done; reports against the acceptance line.",
+      "files": [],
+      "expectations": [
+        "The brief names authorisation (role or organisation scoping) as a risk",
+        "Plans the change before editing, including the role check and the organisation check",
+        "Writes or names tests that a non-admin and an admin of another organisation are refused",
+        "Requests a security review (the security-reviewer agent or the security skill's review mode) before reporting done",
+        "Reports against the acceptance line, including anything it could not verify"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "small-fix-stays-small",
+      "prompt": "Fix the typo 'Invoce' in the 404 message in src/server.mjs.",
+      "expected_output": "Fixes the typo directly with at most a one-line brief, runs the relevant check (the test suite), and reports in a line or two. No plan document, no subagents, no questions.",
+      "files": [],
+      "expectations": [
+        "Fixes the typo in src/server.mjs without writing a multi-section plan or spawning review agents",
+        "Asks no questions",
+        "Runs or names a relevant check after the edit",
+        "Reports in a few lines"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "feature-with-tests",
+      "prompt": "Add an endpoint that exports an organisation's invoices as CSV, with tests.",
+      "expected_output": "Brief with scope (a new GET route and a CSV formatter; not PDF or scheduled exports) and acceptance (a test for the CSV body, the headers including Content-Disposition, and that another organisation's invoices never appear). Plans the steps, names CSV injection or large exports as a risk, builds in steps with the tests run between them, gets a review, and reports with the evidence.",
+      "files": [],
+      "expectations": [
+        "The brief's scope names the new route and excludes something explicit",
+        "Scopes the export to the caller's organisation and tests that another organisation's invoices are absent",
+        "Names CSV injection, escaping, or large exports as a risk",
+        "Runs the tests after the last edit and reports the result",
+        "Requests a code review or security review before reporting done"
+      ]
+    }
+  ]
+}

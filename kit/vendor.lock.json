@@ -1,0 +1,28 @@
+{
+  "repos": {
+    "taste-skill": {
+      "source": "github:Leonxlnx/taste-skill",
+      "fetchedFrom": "github",
+      "commit": "ce26fc25c0e5e8cab638f883de62d9a86ee5e45b"
+    },
+    "agent-browser": {
+      "source": "github:vercel-labs/agent-browser",
+      "fetchedFrom": "github",
+      "commit": "d01253d9db28d75080e36da3c1c31ef89454731e"
+    }
+  },
+  "skills": [
+    {
+      "name": "design-taste-frontend",
+      "repo": "taste-skill",
+      "path": "skills/taste-skill",
+      "patched": false
+    },
+    {
+      "name": "agent-browser",
+      "repo": "agent-browser",
+      "path": "skills/agent-browser",
+      "patched": true
+    }
+  ]
+}

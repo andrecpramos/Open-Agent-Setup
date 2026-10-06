@@ -1,0 +1,20 @@
+[
+  { "query": "add dark mode to our app, we have css variables for colors but only one theme", "should_trigger": true },
+  { "query": "our Button component needs a size prop and a ghost variant that everyone can use", "should_trigger": true },
+  { "query": "find all the hardcoded hex colors in the frontend and replace them with tokens", "should_trigger": true },
+  { "query": "set up Style Dictionary so our tokens generate CSS vars and the Tailwind theme", "should_trigger": true },
+  { "query": "the muted text color is hard to read in dark mode, fix the token", "should_trigger": true },
+  { "query": "sync the spacing and radius variables from Figma with the code", "should_trigger": true },
+  { "query": "add a lint rule that blocks arbitrary tailwind values like text-[13px]", "should_trigger": true },
+  { "query": "people keep copying the Card markup instead of using the Card component — how do we stop that", "should_trigger": true },
+  { "query": "we got a DESIGN.md from the designer, turn it into our token system", "should_trigger": true },
+  { "query": "o tema escuro pisca no arranque da app, os tokens só aplicam depois do render", "should_trigger": true },
+  { "query": "build the new onboarding page with a 3-step form", "should_trigger": false },
+  { "query": "our landing page looks generic, give it a more premium visual direction", "should_trigger": false },
+  { "query": "the products list refetches on every keystroke, debounce it", "should_trigger": false },
+  { "query": "add an endpoint that returns the user's theme preference", "should_trigger": false },
+  { "query": "review the architecture of the frontend monorepo packages", "should_trigger": false },
+  { "query": "is our CSP header configured correctly", "should_trigger": false },
+  { "query": "write e2e tests for checkout", "should_trigger": false },
+  { "query": "evaluate whether the new system prompt reduces hallucinated order numbers", "should_trigger": false }
+]

@@ -1,0 +1,57 @@
+{
+  "skill_name": "self-improve",
+  "evals": [
+    {
+      "id": 1,
+      "name": "standing-rule-from-correction",
+      "prompt": "No — I told you already, in this repo we never run `npm install`, it's pnpm only and npm rewrites the lockfile. From now on remember that.",
+      "expected_output": "Acknowledges, uses pnpm for the current task, captures the lesson in .agents/learnings/inbox.md in the documented format, and because it is a standing rule routes it immediately — proposing a guard.extraDeny entry denying `npm install`/`npm i` with `pnpm install` as the alternative (config is protected, so shown for approval) and/or the project section of AGENTS.md — then reports the routing in one line.",
+      "files": [],
+      "expectations": [
+        "Writes an entry to .agents/learnings/inbox.md with a date, the lesson and evidence",
+        "Treats it as a standing rule and routes it immediately rather than leaving it in the inbox",
+        "Proposes a mechanical enforcement (guard extraDeny pattern for npm install) rather than only a note",
+        "Asks for approval before changing the protected sdlc config"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "retro-classification",
+      "prompt": "Run a retro. The inbox has three entries: (1) 'The staging DB is wiped every Sunday', (2) 'Agents keep forgetting that Prisma needs `prisma generate` after schema edits — true in any Prisma repo', (3) 'User prefers answers in Portuguese'.",
+      "expected_output": "Routes (1) to .agents/docs/lessons.md as a dated project fact; classifies (2) as universal — writes an outbox proposal for the backend skill in the proposal format with a regression case, and adds a postEdit reminder or overlay line locally; treats (3) as personal and asks before writing user memory; moves processed entries to the archive and reports a routing table.",
+      "files": [],
+      "expectations": [
+        "Routes the staging fact to a project destination (lessons.md or similar), not to the kit",
+        "Writes an outbox proposal for the Prisma lesson with a proposed change and a regression case",
+        "Adds a local mechanism for the Prisma lesson (postEdit reminder or overlay) so this repo benefits before the kit is updated",
+        "Asks before storing the personal preference",
+        "Empties the inbox into an archive with routing notes and reports a table"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "do-not-edit-kit-files",
+      "prompt": "The frontend skill in .agents/skills/frontend/SKILL.md says to use TanStack Query, but we use SWR everywhere here. Just edit the skill file so it stops suggesting TanStack.",
+      "expected_output": "Explains that kit-owned files are overwritten on update and instead writes .agents/overlays/frontend.md stating the repo uses SWR (with the key conventions), leaving the kit skill untouched; optionally notes the overlay mechanism already makes the skill defer to it.",
+      "files": [],
+      "expectations": [
+        "Does not modify .agents/skills/frontend/SKILL.md",
+        "Creates or updates .agents/overlays/frontend.md with the SWR convention",
+        "Explains briefly why the overlay is the right place"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "retro-from-metrics",
+      "prompt": "Run a retro. The inbox is empty. `node .agents/hooks/session-eval.mjs --summary` shows: code checked after its last edit 40% (the 20 windows before: 80%), claims the transcript does not back 3 (before: 0), heavy output re-read per window 2.1M (before: 0.4M). Other rows are flat.",
+      "expected_output": "Does not stop at the empty inbox: treats the three worsened metrics as lesson candidates, looks up the windows behind them in .agents/learnings/eval-windows.jsonl (after_last_edit false, claims.unverified, heavy.top) to find the cause, and routes each to its strongest form — e.g. a gate or postEdit check for the missing verification, read discipline or delegating searches to the scout agent in an overlay for the heavy reads. The report names the metric each routed lesson should move and restates the summary rows.",
+      "files": [],
+      "expectations": [
+        "Treats the worsened metrics as lesson candidates despite the empty inbox",
+        "Looks up the specific windows in eval-windows.jsonl rather than guessing the cause",
+        "Routes the missing verification to an enforced form (gate, postEdit or guard) rather than only a document",
+        "The report ties each lesson to the metric it should move"
+      ]
+    }
+  ]
+}

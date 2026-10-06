@@ -1,0 +1,20 @@
+[
+  { "query": "implement team invitations: an admin invites by email, the invitee accepts and joins the workspace", "should_trigger": true },
+  { "query": "the checkout page is slow and people are complaining, make it faster", "should_trigger": true },
+  { "query": "take this from idea to PR: users should be able to pause their subscription for a month", "should_trigger": true },
+  { "query": "add dark mode to the whole app", "should_trigger": true },
+  { "query": "refactor the notifications module so email and push share one pipeline", "should_trigger": true },
+  { "query": "clean up the settings page, it's a mess and half the toggles don't save", "should_trigger": true },
+  { "query": "plan and build an audit log of who changed what in the admin panel", "should_trigger": true },
+  { "query": "implementa a exportação de faturas em PDF de ponta a ponta, com testes", "should_trigger": true },
+  { "query": "we need rate limiting on the public API before launch, can you add it", "should_trigger": true },
+  { "query": "what does the retry helper in src/lib/retry.ts do?", "should_trigger": false },
+  { "query": "run the gates and tell me if we're green", "should_trigger": false },
+  { "query": "commit this and open a PR into develop", "should_trigger": false },
+  { "query": "security review this diff before I merge it", "should_trigger": false },
+  { "query": "write a handoff, I'll continue tomorrow", "should_trigger": false },
+  { "query": "fix the typo 'recieve' in the README", "should_trigger": false },
+  { "query": "should we split the billing code into its own service? write an ADR", "should_trigger": false },
+  { "query": "is it safe to store the session id in localStorage?", "should_trigger": false },
+  { "query": "explica-me como funciona o fluxo de autenticação neste projeto", "should_trigger": false }
+]

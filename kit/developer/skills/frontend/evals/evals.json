@@ -1,0 +1,85 @@
+{
+  "skill_name": "frontend",
+  "evals": [
+    {
+      "id": 1,
+      "name": "search-race-condition",
+      "prompt": "src/pages/Products.tsx fetches products with useEffect + useState whenever the search box changes, and when I type fast it sometimes shows results for the previous search. We already use @tanstack/react-query in other pages (see src/pages/Orders.tsx). Fix it properly.",
+      "expected_output": "Replaces the effect-based fetch with the project's data layer (useQuery keyed by the search term), renders distinct loading, empty and error states, keeps previous results visible during refetch, and adds a test that reproduces the stale-response race.",
+      "files": [],
+      "expectations": [
+        "Uses useQuery (or the project's existing data layer) with the search term inside the query key",
+        "No fetch inside useEffect remains for this data",
+        "Loading, empty and error states each render something distinct",
+        "Adds or updates a test covering out-of-order responses or the search flow",
+        "Follows the pattern already used in src/pages/Orders.tsx rather than inventing a new one"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "accessible-destructive-dialog",
+      "prompt": "Add a 'Delete account' button to the settings page that opens a confirmation dialog, calls DELETE /api/account, and signs the user out on success.",
+      "expected_output": "Uses the project's existing dialog/modal component if one exists; the dialog is labelled, moves focus in, traps it, closes on Escape and returns focus to the trigger; the confirm button shows a pending state and cannot double-submit; errors are shown in the dialog; the destructive action is clearly worded.",
+      "files": [],
+      "expectations": [
+        "Reuses an existing Dialog/Modal component when the codebase has one instead of hand-rolling a new one",
+        "Dialog has an accessible name (aria-labelledby or equivalent) and closes on Escape",
+        "Focus returns to the triggering button when the dialog closes",
+        "Confirm button is disabled or shows pending state while the request is in flight",
+        "An error from the DELETE call is rendered to the user, not only logged"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "form-double-submit-and-server-errors",
+      "prompt": "Our signup form (src/features/auth/SignupForm.tsx) lets people click submit twice, which creates two accounts, and when the API answers 422 {errors: {email: 'already registered'}} the user sees nothing. Fix both.",
+      "expected_output": "Submit is disabled/pending while in flight; the 422 field error is mapped onto the email field with aria-invalid and an aria-describedby message; user input is preserved; the answer notes that true protection against duplicate accounts is server-side (unique constraint / idempotency) and flags it rather than silently skipping it.",
+      "files": [],
+      "expectations": [
+        "Submit control is disabled or ignores clicks while the request is pending",
+        "Server field error is displayed next to the email field and linked with aria-describedby or equivalent",
+        "Form values are kept after a failed submission",
+        "Mentions that duplicate-account prevention must also be enforced server-side"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unscoped-component-stylesheet",
+      "prompt": "Since we added the Pricing page, the buttons in the site footer have rounded corners and a border. Footer.css hasn't changed. It's a Vite + React app with one plain .css file per page component and no CSS modules. Find the cause and fix it.",
+      "expected_output": "Searches the other page stylesheets for top-level element selectors, explains that the bundler ships every page's CSS to every route so an unscoped `button {}` in Pricing's file applies app-wide, and nests those rules under the Pricing page's own class instead of overriding them in Footer.css.",
+      "files": [],
+      "expectations": [
+        "Searches stylesheets other than Footer.css for top-level element selectors (button, a, ul)",
+        "Explains that the bundler ships every page's CSS to every route, so an unscoped rule leaks",
+        "Fixes the leaking file by nesting its element selectors under its page or component class",
+        "Does not paper over it with a higher-specificity override or !important in Footer.css"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "imperative-class-lost-on-render",
+      "prompt": "Our useKeyboardSelection hook adds an 'is-active' class with element.classList.add when a list row is selected with the arrow keys. The highlight disappears whenever the list re-renders, for example when the unread count updates. Fix it.",
+      "expected_output": "Identifies that the re-render rewrites the React-managed className and drops the imperatively added class, and moves the flag to a data attribute (data-active) or React state, updating the CSS selector to match.",
+      "files": [],
+      "expectations": [
+        "Names the cause: React rewrites className on re-render and removes the class added with classList",
+        "Moves the selection flag to a data-* attribute or to React state, not another className trick",
+        "Updates the CSS that keyed on .is-active to the new selector",
+        "Does not suppress the list's re-render to hide the symptom"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "media-play-not-a-promise",
+      "prompt": "PodcastPlayer calls audioRef.current.play().then(() => setStatus('playing')). Some Safari users say the play button does nothing and the console shows an unhandled promise rejection, and our jsdom component test throws \"Cannot read properties of undefined (reading 'then')\". Fix the component, not the test.",
+      "expected_output": "Wraps play() in a small helper that handles an undefined return (jsdom, older browsers) and catches the rejection when playback is blocked, updates the status accordingly, and uses it in PodcastPlayer; the test passes unchanged.",
+      "files": [],
+      "expectations": [
+        "Does not chain .then directly on the return value of play()",
+        "Handles play() returning undefined",
+        "Catches the rejection instead of leaving it unhandled, and reflects it in the player's state",
+        "Leaves the test as it was rather than mocking play() to return a promise"
+      ]
+    }
+  ]
+}

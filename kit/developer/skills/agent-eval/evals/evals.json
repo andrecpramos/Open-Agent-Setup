@@ -1,0 +1,57 @@
+{
+  "skill_name": "agent-eval",
+  "evals": [
+    {
+      "id": 1,
+      "name": "prompt-change-without-eval",
+      "prompt": "I rewrote the system prompt for our intent router (prompts/router.v3.md → v4) and it feels better when I try a few messages. Can we ship it? The router picks one of 14 intents or asks a clarifying question.",
+      "expected_output": "Declines to call it better from spot checks; proposes (or builds, if data exists) a bucketed dataset including ambiguous, out-of-scope and adversarial cases, exact-match grading on the chosen intent, baseline v3 vs candidate v4 with ≥3 runs, a per-bucket comparison and a committed scorecard with a regression gate; keeps v3 as a versioned file rather than editing in place.",
+      "files": [],
+      "expectations": [
+        "Does not declare v4 better based on manual tries",
+        "Proposes a dataset split into buckets including ambiguous and out-of-scope cases",
+        "Uses a code-based grader (exact match on intent) rather than an LLM judge for this task",
+        "Compares baseline and candidate per bucket with repeated runs",
+        "Mentions committing a scorecard and gating regressions in CI"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "llm-judge-design",
+      "prompt": "We want to automatically grade our support bot's answers for helpfulness. I was going to ask GPT to rate each answer 1-10. Good idea?",
+      "expected_output": "Explains why 1–10 ratings are noisy and biased; proposes a rubric of binary criteria with reference answers and evidence quotes, pairwise comparison with order swapping for A/B decisions, calibration against 30–50 human labels with an agreement target, and a versioned judge prompt.",
+      "files": [],
+      "expectations": [
+        "Recommends binary or small-scale criteria instead of a 1-10 score",
+        "Includes reference answers or required facts in the judge prompt",
+        "Recommends calibrating the judge against human labels",
+        "Mentions position or verbosity bias and a mitigation such as order swapping"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "scorecard-gate",
+      "prompt": "Here are two scorecards: evals/baseline.json has happy 58/60, ambiguous 15/20, adversarial 30/30 (zeroTolerance). evals/candidate.json has happy 60/60, ambiguous 13/20, adversarial 29/30. Is the candidate better? Should CI pass?",
+      "expected_output": "Runs or reasons like compare-scorecards: the zero-tolerance adversarial bucket has a failure, so CI must fail regardless of the happy-path gain. The ambiguous drop (15/20 → 13/20) is two cases on a 20-case bucket — inside the sampling noise, so it is a lead to investigate, not a confirmed regression; recommends reading the failing cases and adding cases or runs before trusting it.",
+      "files": [],
+      "expectations": [
+        "Concludes CI should fail",
+        "Identifies the adversarial failure as disqualifying under zero tolerance",
+        "Treats the two-case ambiguous drop as within sampling noise rather than a confirmed regression, and asks for more cases or runs"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "flaky-gate",
+      "prompt": "Our eval job in CI fails about one run in three even when nobody touched the prompt. Buckets have 10 to 20 cases each, we run each case once, and the gate fails when any bucket drops more than 2 points below the committed baseline. Should I just raise the tolerance to 15 points?",
+      "expected_output": "Explains that the failures are sampling noise: with 10–20 cases one flipped case moves a bucket 5–10 points, so a 2-point gate fires on unchanged prompts. A flat 15-point tolerance would hide real regressions on large buckets. Recommends a noise-aware comparison (compare-scorecards' default: tolerance or z × standard error, whichever is larger), more cases or repeated runs where a smaller delta matters, and zero tolerance only for safety buckets.",
+      "files": [],
+      "expectations": [
+        "Identifies sampling noise on small buckets as the cause",
+        "Advises against a single large flat tolerance for every bucket",
+        "Recommends a comparison that scales with bucket size, or more cases or runs",
+        "Keeps zero tolerance for safety buckets"
+      ]
+    }
+  ]
+}

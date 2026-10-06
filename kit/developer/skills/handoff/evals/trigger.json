@@ -1,0 +1,34 @@
+[
+  {
+    "query": "write a handoff, I will continue tomorrow",
+    "should_trigger": true
+  },
+  {
+    "query": "wrap up and save where we are",
+    "should_trigger": true
+  },
+  {
+    "query": "I am about to /clear, capture the state first",
+    "should_trigger": true
+  },
+  {
+    "query": "deixa uma nota de passagem para a próxima sessão",
+    "should_trigger": true
+  },
+  {
+    "query": "write the release notes for this sprint",
+    "should_trigger": false
+  },
+  {
+    "query": "summarize this PR for reviewers",
+    "should_trigger": false
+  },
+  {
+    "query": "run a retro on what we learned",
+    "should_trigger": false
+  },
+  {
+    "query": "document the architecture of the payments module",
+    "should_trigger": false
+  }
+]

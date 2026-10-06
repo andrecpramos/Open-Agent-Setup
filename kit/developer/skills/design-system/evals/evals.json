@@ -1,0 +1,57 @@
+{
+  "skill_name": "design-system",
+  "evals": [
+    {
+      "id": 1,
+      "name": "add-warning-token-both-themes",
+      "prompt": "We need a 'warning' status style for banners and badges. Our tokens are CSS variables in src/styles/tokens.css with :root and [data-theme=dark] blocks, mapped into tailwind.config.ts. Add it.",
+      "expected_output": "Adds semantic warning tokens (fg/bg/border or equivalent roles) in both the light and dark blocks, maps them into the Tailwind theme, checks text/background contrast in both themes (≥4.5:1 for text), and uses them via variants of the existing Banner/Badge components rather than hardcoded values.",
+      "files": [],
+      "expectations": [
+        "Defines the new tokens in both the light and the dark theme",
+        "Adds semantic role tokens (e.g. warning-fg / warning-bg / warning-border) rather than a single raw colour",
+        "Checks or reports contrast ratios for the text/background pairs in both themes",
+        "Exposes the style as a variant of existing components instead of inline colours"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "audit-hardcoded-values",
+      "prompt": "The UI looks inconsistent across pages. Audit how well product code under src/features uses our design system and tell me what to fix first.",
+      "expected_output": "Runs concrete searches for raw colours, arbitrary Tailwind values, inline visual styles and hand-rolled lookalikes of shared components; reports counts and top offending files; states which rules are enforced by lint and which are not; ends with one prioritised next action (typically a lint rule with a ratchet baseline).",
+      "files": [],
+      "expectations": [
+        "Reports counts from actual searches of the code rather than general impressions",
+        "Identifies hand-rolled duplicates of shared components as a category",
+        "Distinguishes rules that are mechanically enforced from those that are not",
+        "Ends with a single prioritised next action"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "button-variant-api",
+      "prompt": "Product wants a 'destructive' button. Currently people pass className='bg-red-600 text-white' to <Button>. Fix this properly.",
+      "expected_output": "Adds a `danger`/`destructive` variant to the shared Button using semantic danger tokens (defined for all themes, contrast-checked, with hover/focus/disabled states), migrates existing className overrides to the variant, and adds a lint/check or ratchet against colour overrides on Button.",
+      "files": [],
+      "expectations": [
+        "Adds a variant to the shared Button instead of creating a new component or keeping className overrides",
+        "The variant uses semantic tokens, not raw Tailwind palette colours",
+        "Migrates the existing className overrides to the new variant",
+        "Proposes or adds a mechanism that prevents colour overrides from creeping back"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "primitive-import-order",
+      "prompt": "Tag.css gives .tag-warning an amber background, but warning tags render with the neutral background of the shared .chip primitive they also carry. Both are single-class selectors. src/index.tsx imports the components before './styles/primitives.css'. Fix it.",
+      "expected_output": "Explains that equal-specificity rules resolve by source order, which follows import order, and reorders imports to reset → tokens → primitives → components (or introduces @layer), instead of raising specificity on the tag.",
+      "files": [],
+      "expectations": [
+        "Identifies import order (source order at equal specificity) as the cause",
+        "Moves the reset and the tokens/primitives imports ahead of the component imports, or uses @layer",
+        "Does not fix it with !important or a more specific selector on the tag",
+        "Checks other components that override the same primitives"
+      ]
+    }
+  ]
+}

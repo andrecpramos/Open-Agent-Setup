@@ -1,0 +1,20 @@
+[
+  { "query": "is it safe to store the refresh token in localStorage in our react app?", "should_trigger": true },
+  { "query": "security review of my PR that adds the password reset flow", "should_trigger": true },
+  { "query": "how should we hash passwords in our Django app, we're on sha256 right now", "should_trigger": true },
+  { "query": "we render user comments with dangerouslySetInnerHTML so markdown works, is that a problem", "should_trigger": true },
+  { "query": "our PDF export fetches images from URLs in the document, could that be abused?", "should_trigger": true },
+  { "query": "npm audit shows a critical in a transitive dependency, what do we do", "should_trigger": true },
+  { "query": "we're building a RAG chatbot over customer documents, how do we stop it leaking one customer's docs to another", "should_trigger": true },
+  { "query": "check our JWT verification middleware, I think we accept any algorithm", "should_trigger": true },
+  { "query": "make sure we are not logging personal data anywhere in the patient module (GDPR)", "should_trigger": true },
+  { "query": "revê a segurança do upload de ficheiros dos atletas", "should_trigger": true },
+  { "query": "add pagination to the orders endpoint using cursors", "should_trigger": false },
+  { "query": "the settings page shows a blank screen while loading, add a skeleton", "should_trigger": false },
+  { "query": "write an ADR for choosing Postgres over MongoDB", "should_trigger": false },
+  { "query": "our CI takes 20 minutes, can you make the pipeline faster", "should_trigger": false },
+  { "query": "improve the prompt for our summarizer and show that it's better", "should_trigger": false },
+  { "query": "set up light and dark theme tokens", "should_trigger": false },
+  { "query": "migrate the users table to add a last_login_at column", "should_trigger": false },
+  { "query": "wrap up this session and write a handoff", "should_trigger": false }
+]

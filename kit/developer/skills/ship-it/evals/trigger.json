@@ -1,0 +1,42 @@
+[
+  {
+    "query": "ok commit this",
+    "should_trigger": true
+  },
+  {
+    "query": "ship it",
+    "should_trigger": true
+  },
+  {
+    "query": "open a pull request for these changes",
+    "should_trigger": true
+  },
+  {
+    "query": "push the branch and create the PR into develop",
+    "should_trigger": true
+  },
+  {
+    "query": "faz commit e abre o PR",
+    "should_trigger": true
+  },
+  {
+    "query": "squash my last three commits into one",
+    "should_trigger": false
+  },
+  {
+    "query": "review this PR for bugs",
+    "should_trigger": false
+  },
+  {
+    "query": "run the gates",
+    "should_trigger": false
+  },
+  {
+    "query": "write the release notes for v2.3",
+    "should_trigger": false
+  },
+  {
+    "query": "set up branch protection on GitHub",
+    "should_trigger": false
+  }
+]

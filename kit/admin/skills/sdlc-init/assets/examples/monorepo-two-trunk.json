@@ -1,0 +1,91 @@
+{
+  "$schema": "../sdlc.config.schema.json",
+  "version": 1,
+
+  "_comment": "A pnpm monorepo on main/develop with a shared working tree: a web app, an API and the packages they share. Shows the four features the simple example does not: `when` (path-scoped gates), `expectNonZero` (a command that exits non-zero by design), `guard.extraDeny` (a repo-specific denial), and `postEdit` (immediate feedback).",
+
+  "project": {
+    "name": "example-monorepo",
+    "kind": "monorepo",
+    "stack": ["TypeScript", "Node 22", "pnpm 9"],
+    "packageManager": "pnpm",
+    "runtime": "node>=22"
+  },
+
+  "branching": {
+    "model": "two-trunk",
+    "production": "main",
+    "integration": "develop",
+    "featurePrefix": "feature/",
+    "releaseOnRequestOnly": true
+  },
+
+  "sharedTree": true,
+
+  "commits": {
+    "convention": "conventional",
+    "scopes": ["web", "api", "ui", "api-client", "ci", "docs", "adr"]
+  },
+
+  "gates": [
+    {
+      "id": "import-boundaries",
+      "title": "Rule 1 — shared packages never import an app",
+      "command": "pnpm exec depcruise packages --config .dependency-cruiser.cjs",
+      "blocking": true,
+      "rule": "1",
+      "fix": "Move the shared code into a package, or pass it in from the app; never import apps/ from packages/."
+    },
+    { "id": "typecheck", "command": "pnpm -r typecheck", "blocking": true },
+    { "id": "test", "command": "pnpm -r test", "blocking": true },
+    {
+      "id": "api-client-stale",
+      "title": "The generated API client matches the contract",
+      "command": "pnpm api:generate && git diff --quiet -- packages/api-client/src/generated",
+      "blocking": true,
+      "when": ["apps/api/openapi.yaml"],
+      "fix": "pnpm api:generate, then stage the generated client in the same commit."
+    },
+    {
+      "id": "bench",
+      "title": "Search benchmark run",
+      "command": "pnpm bench:run",
+      "blocking": false,
+      "expectNonZero": true,
+      "when": ["packages/search/**"],
+      "fix": "Exits non-zero BY DESIGN when a sample misses its soft budget. The verdict is `pnpm bench:compare` against the committed baseline."
+    }
+  ],
+
+  "docs": {
+    "root": ".agents",
+    "rules": ".agents/docs/rules.md",
+    "decisions": ".agents/decisions",
+    "plan": "docs/ROADMAP.md"
+  },
+
+  "guard": {
+    "denyBroadStaging": true,
+    "denyProductionWrites": true,
+    "denyBranchFromProduction": true,
+    "extraDeny": [
+      {
+        "pattern": "pnpm\\s+(-r\\s+)?publish|changeset\\s+publish",
+        "reason": "Packages are published by the release workflow only: a local publish skips provenance and the changelog.",
+        "instead": "pnpm changeset"
+      }
+    ]
+  },
+
+  "postEdit": [
+    {
+      "paths": ["packages/ui/src/**/*.tsx"],
+      "run": "node scripts/lint-ui-imports.mjs",
+      "timeoutMs": 5000
+    },
+    {
+      "paths": ["apps/api/openapi.yaml"],
+      "remind": "The API contract changed — the generated client is now stale. Run `pnpm api:generate` and commit the result in the same commit."
+    }
+  ]
+}

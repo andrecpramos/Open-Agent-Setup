@@ -1,0 +1,27 @@
+# Machine-local state. The registry lives in ~/.agent-setup/; .state/ is where older
+# checkouts kept it (read once, then migrated).
+.state/
+
+# A maintainer's own agent folders (settings, memory, handoffs, local instructions):
+# never part of the kit, whatever agent they use. What the kit installs lives in kit/.
+.claude/
+.codex/
+.cursor/
+.gemini/
+.windsurf/
+/.agents/
+CLAUDE.local.md
+# Claude Code reads AGENTS.md here; a CLAUDE.md would hide it, so one can only be personal.
+/CLAUDE.md
+
+# Harvested proposals and their triage records name the projects they came from:
+# local only. What reaches the kit is the generic change, never the proposal.
+inbox/*
+!inbox/README.md
+
+# Skill-creator eval workspaces and scratch
+*-workspace/
+node_modules/
+
+# TypeScript build staging (scripts/build.mjs removes it; present only mid-build)
+.build-ts/

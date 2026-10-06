@@ -1,0 +1,44 @@
+{
+  "skill_name": "security",
+  "evals": [
+    {
+      "id": 1,
+      "name": "idor-in-invoice-endpoint",
+      "prompt": "Security review this before I merge: `app.get('/api/invoices/:id', requireAuth, async (req, res) => { const inv = await prisma.invoice.findUnique({ where: { id: req.params.id } }); if (!inv) return res.sendStatus(404); res.json(inv); })`. Invoices belong to organisations; req.user has orgId.",
+      "expected_output": "Reports a high-severity IDOR/broken object-level authorisation: any authenticated user can read any organisation's invoice by id. Gives the exploit path, fixes by scoping the query to req.user.orgId (returning 404 otherwise), recommends a test proving cross-org access fails, and notes the full invoice object may over-expose fields.",
+      "files": [],
+      "expectations": [
+        "Identifies missing object-level authorisation (IDOR/BOLA) as the main finding",
+        "The fix scopes the lookup to the caller's organisation from the authenticated session, not from request input",
+        "Recommends or adds a negative test for cross-organisation access",
+        "Uses a structured finding with location, exploit, impact, fix and severity"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "avatar-import-from-url",
+      "prompt": "Add a feature so users can import their profile picture from a URL they paste. Node/Express backend, images stored in S3.",
+      "expected_output": "Implements with SSRF controls (https only, DNS resolution with private/link-local/metadata ranges blocked, no redirect following or re-validation per hop), response size and time limits, content-based image type detection and re-encoding, generated S3 keys, private storage; includes negative tests for internal URLs.",
+      "files": [],
+      "expectations": [
+        "Blocks requests to private, loopback and link-local addresses including 169.254.169.254, checked after DNS resolution",
+        "Limits download size and time",
+        "Validates the image by content rather than trusting extension or Content-Type",
+        "Adds tests that internal URLs are rejected"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "agent-refund-tool-threat-model",
+      "prompt": "We're adding an LLM support agent that reads customer tickets and can call a refund(orderId, amount) tool. What could go wrong and how should we build it?",
+      "expected_output": "Threat-models indirect prompt injection via ticket content and excessive agency; recommends the dispatcher-enforced policy pattern: validate orderId belongs to the ticket's customer, cap amount at the order total and a policy limit, human confirmation above a threshold, least-privilege tool, logging; plus an adversarial eval bucket gated at zero unsafe refunds.",
+      "files": [],
+      "expectations": [
+        "Names indirect prompt injection through ticket content as a primary threat",
+        "Enforces refund policy in code outside the model (ownership check, amount limits)",
+        "Requires human confirmation or hard limits for consequential refunds",
+        "Proposes adversarial evaluation cases with a zero-tolerance gate"
+      ]
+    }
+  ]
+}

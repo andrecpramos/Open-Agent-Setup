@@ -1,0 +1,57 @@
+{
+  "skill_name": "backend",
+  "evals": [
+    {
+      "id": 1,
+      "name": "coupon-double-redeem-race",
+      "prompt": "Users can redeem the same single-use coupon twice if they click fast. src/services/coupons.ts loads the coupon, checks `coupon.usedAt == null`, then saves it with usedAt = now(). Postgres + Prisma. Fix it so it can never happen.",
+      "expected_output": "Replaces check-then-act with an atomic conditional update (updateMany/UPDATE ... WHERE used_at IS NULL, checking the affected row count) or a unique constraint on redemptions, maps the conflict to a clear domain error, and adds a concurrency test that fires parallel redemptions and asserts exactly one succeeds.",
+      "files": [],
+      "expectations": [
+        "The fix is enforced by the database (conditional update with row-count check, unique constraint, or row lock), not by an in-memory check",
+        "A second concurrent redemption results in a defined error rather than a silent success",
+        "Adds a test that runs redemptions concurrently and asserts exactly one succeeds",
+        "Does not rely on a mocked database for the concurrency test"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "not-null-column-on-large-table",
+      "prompt": "We need a NOT NULL `status` column on `orders` (PostgreSQL, about 40 million rows, migrations with Flyway) defaulting to 'pending'. The app runs 4 replicas with rolling deploys. Write the migration(s).",
+      "expected_output": "An expand/contract plan: add the column in a way that avoids a table rewrite or long lock, backfill in batches if needed, enforce NOT NULL via a NOT VALID check constraint then VALIDATE (or explain that a constant default makes it metadata-only on PG11+), set lock_timeout, and state which steps are separate deploys.",
+      "files": [],
+      "expectations": [
+        "Avoids a single blocking ALTER that rewrites or scans 40M rows under an exclusive lock, or explains why the chosen statement is metadata-only",
+        "Sets a lock_timeout (or equivalent) for the migration",
+        "Explains compatibility with old and new code during the rolling deploy",
+        "Does not edit an already-applied migration"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "email-sent-for-rolled-back-order",
+      "prompt": "Customers sometimes get an order-confirmation email for orders that don't exist. OrderService.placeOrder opens a transaction, inserts the order, calls emailClient.sendConfirmation(), then inserts the order lines — and the lines insert fails sometimes on a constraint.",
+      "expected_output": "Identifies the side effect inside the transaction as the cause, moves the email out via a transactional outbox or an after-commit hook with an idempotent sender, and adds a test proving no email is sent when the transaction rolls back.",
+      "files": [],
+      "expectations": [
+        "Names the email call inside the transaction as the root cause",
+        "Sends the email only after commit (outbox table or after-commit hook), never inside the transaction",
+        "Makes the email sending idempotent or mentions duplicate-delivery handling",
+        "Adds a test asserting no email is sent when the order fails to persist"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "deploy-path-verified-by-running",
+      "prompt": "Review the Dockerfile and compose healthcheck for our Node API before the first production deploy. The Dockerfile runs `npm ci --omit=dev` and copies the source afterwards; package.json has a postinstall that generates the ORM client from schema/. The healthcheck is `curl -f http://localhost:8080/healthz`.",
+      "expected_output": "Builds the image without cache (or says it must be built), catches that the postinstall runs before schema/ is copied, starts the container and runs the exact health-check command, flagging that localhost can resolve to ::1 while the server listens on IPv4 and switching to 127.0.0.1.",
+      "files": [],
+      "expectations": [
+        "Builds the image with --no-cache, or states it is unverified until that build is done",
+        "Flags that schema/ must be copied before npm ci when postinstall generates the client from it",
+        "Runs the exact health-check command against the booted container, or says it could not",
+        "Recommends 127.0.0.1 (or binding to all interfaces) instead of localhost in the health check"
+      ]
+    }
+  ]
+}

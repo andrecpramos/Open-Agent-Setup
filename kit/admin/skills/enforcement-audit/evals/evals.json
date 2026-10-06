@@ -1,0 +1,18 @@
+{
+  "skill_name": "enforcement-audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "claims-vs-enforcement",
+      "prompt": "Which of our rules are actually enforced? CONTRIBUTING says: no direct pushes to main, all PRs need passing tests, domain code never imports infrastructure, no secrets in the repo.",
+      "expected_output": "Finds the enforcement for each claim by reading CI run lines, branch protection (or reports it could not be checked), hooks and lint configs; notes coverage (Claude-only hook vs git hook vs CI); marks each enforced/partial/convention; writes or updates critical-infrastructure.md; ranks gaps by blast radius; ends with one next action.",
+      "files": [],
+      "expectations": [
+        "Checks branch protection or explicitly says it could not",
+        "Distinguishes Claude Code-only enforcement from enforcement that covers all agents",
+        "Marks each claim enforced/partial/convention with evidence",
+        "Ends with exactly one next action"
+      ]
+    }
+  ]
+}
