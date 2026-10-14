@@ -5,11 +5,17 @@
 //                 transcript still ends with everything the window did.
 //   SessionEnd  — record the last window.
 //   SessionStart — with `workflow.sessionSummary: true`, show the person one line of
-//                 metrics over the last 20 windows, as a systemMessage the model never
-//                 sees. Off by default: the numbers are the admin's, read with
-//                 `agent-setup evals` and `report`, not every developer's at every start.
+//                 metrics and one of cost over the last 20 windows, as a systemMessage
+//                 the model never sees. Off by default: the numbers are the admin's, read
+//                 with `agent-setup evals`, `usage` and `report`, not every developer's at
+//                 every start.
 //
-// A row holds facts, not a grade: tokens and cache hits per model; token waste
+// Run by hand, `--summary` prints the metrics table and `--usage` what the windows cost
+// and what routing work across the model tiers saved, priced with .agents/models.json
+// (_usage.mjs, shared with `agent-setup usage`).
+//
+// A row holds facts, not a grade: tokens and cache hits per model, the main thread's
+// and, under agents_usage, each subagent run's (read from its own transcript); token waste
 // (a file re-read with no edit in between, the output of failed calls) and heavy
 // tool results with what they cost across the later calls that re-read them;
 // whether a check ran after the last edit and passed; and whether the final
@@ -31,6 +37,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gateCommands, loadConfig, learningsDir, readManifest, readPayload, repoRoot, logError } from './_config.mjs';
 import { parseTranscript, readRows, summaryLine, summaryTable, windowFacts, windowSlice } from './_transcript.mjs';
+import { projectModels, subagentUsage, usageLine, usageReport, usageText } from './_usage.mjs';
 
 // The entry point is at the BOTTOM of this file (see learning-signals.mjs for
 // the temporal-dead-zone bug that rule prevents).
@@ -38,18 +45,36 @@ import { parseTranscript, readRows, summaryLine, summaryTable, windowFacts, wind
 const FILE = 'eval-windows.jsonl';
 const CAP = 500;
 
+const argOf = (flag) => {
+  const i = process.argv.indexOf(flag);
+  return i > 0 ? process.argv[i + 1] : undefined;
+};
+
+const projectRows = (root) => {
+  const file = join(learningsDir(root), FILE);
+  return existsSync(file) ? readRows(readFileSync(file, 'utf8')) : [];
+};
+
 /** `node .agents/hooks/session-eval.mjs --summary [--last N]`: the summary rows, for people and agents. */
 function printSummary() {
   const root = process.env.CLAUDE_PROJECT_DIR || repoRoot();
-  const file = join(learningsDir(root), FILE);
-  const i = process.argv.indexOf('--last');
-  const last = i > 0 && Number(process.argv[i + 1]) > 0 ? Number(process.argv[i + 1]) : 20;
-  process.stdout.write(`${summaryTable(existsSync(file) ? readRows(readFileSync(file, 'utf8')) : [], last)}\n`);
+  const last = Number(argOf('--last')) > 0 ? Number(argOf('--last')) : 20;
+  process.stdout.write(`${summaryTable(projectRows(root), last)}\n`);
+}
+
+/** `node .agents/hooks/session-eval.mjs --usage [--last N] [--vs main|<tier>|<model>]`: cost, routing and quality. */
+function printUsage() {
+  const root = process.env.CLAUDE_PROJECT_DIR || repoRoot();
+  const last = Number(argOf('--last')) > 0 ? Number(argOf('--last')) : 0;
+  const rows = projectRows(root);
+  const report = usageReport(last ? rows.slice(-last) : rows, projectModels(root, loadConfig()), { reference: argOf('--vs') });
+  process.stdout.write(`${usageText(report)}\n`);
 }
 
 async function run() {
-  // Run by hand: print the table. Checked before reading stdin, which would wait on a terminal.
+  // Run by hand: print a table. Checked before reading stdin, which would wait on a terminal.
   if (process.argv.includes('--summary')) return printSummary();
+  if (process.argv.includes('--usage')) return printUsage();
   const payload = await readPayload();
   const event = payload.hook_event_name;
   if (event !== 'PreCompact' && event !== 'SessionEnd' && event !== 'SessionStart') return;
@@ -65,8 +90,10 @@ async function run() {
     // A compaction continues the same session; the line was shown when it started. A baseline
     // shows nothing: it measures how the team works without the kit, and a metrics line would change that.
     if (payload.source === 'compact' || setup.mode === 'measure' || cfg.workflow?.sessionSummary !== true || !existsSync(join(dir, FILE))) return;
-    const line = summaryLine(readRows(readFileSync(join(dir, FILE), 'utf8')));
-    if (line) process.stdout.write(JSON.stringify({ systemMessage: `${line}  (table: node .agents/hooks/session-eval.mjs --summary)` }));
+    const rows = projectRows(root);
+    const line = summaryLine(rows);
+    const cost = usageLine(usageReport(rows.slice(-20), projectModels(root, cfg)));
+    if (line) process.stdout.write(JSON.stringify({ systemMessage: `${line}${cost ? `\n${cost}` : ''}  (tables: node .agents/hooks/session-eval.mjs --summary, --usage)` }));
     return;
   }
 
@@ -88,6 +115,9 @@ async function run() {
     setup,
     ...windowFacts(acc, { root, checks: gateCommands(cfg) }),
   };
+  // What the window's subagents used, from their own transcripts (a run still going counts what it has done).
+  const agents = subagentUsage(path, acc.subagentRuns);
+  if (Object.keys(agents).length) row.agents_usage = agents;
   upsert(join(dir, FILE), row);
 }
 

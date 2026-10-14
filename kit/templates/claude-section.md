@@ -5,7 +5,8 @@
   the Bash and PowerShell tools and names the alternative — take it rather than working around
   it; `check-gates` runs the fast check an edit could break; `stop-check` asks once for a check
   when code changed after the last one; `prompt-intake` asks for a brief when a request is
-  large or touches auth, payments, data, production or secrets; `branch-check` speaks at
+  large or touches auth, payments, data, production or secrets, and names the cheaper agent for
+  a docs task or a plan to build — hand the work over; `branch-check` speaks at
   session start only when the branch needs attention.{{ADMIN_HOOKS}}
 {{CLAUDE_AGENTS}}
 - **Commands:** {{CLAUDE_COMMANDS}}

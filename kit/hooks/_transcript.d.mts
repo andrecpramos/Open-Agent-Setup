@@ -7,11 +7,25 @@ export interface SessionPrompt {
   ts: string | null;
 }
 
-export interface ModelStats {
+/** Token counts of the calls whose prompt passed LONG_PROMPT (a subset of the model's totals). */
+export interface LongStats {
   input: number;
   output: number;
   cacheRead: number;
   cacheCreate: number;
+  cacheCreate1h: number;
+}
+
+export interface ModelStats {
+  input: number;
+  output: number;
+  cacheRead: number;
+  /** Every cache write, the 1-hour ones included. */
+  cacheCreate: number;
+  /** The part of cacheCreate written for an hour (billed at the 1-hour rate). */
+  cacheCreate1h?: number;
+  /** Present once a call's prompt passed LONG_PROMPT. */
+  long?: LongStats;
   /** API calls: one per message id, however many transcript lines it spans. */
   calls: number;
   costUsd: number | null;
@@ -56,6 +70,8 @@ export interface LiveSession {
   skillDocReads: string[];
   /** One entry per Task/Agent call: the subagent type, without a plugin prefix. */
   agentCalls: string[];
+  /** One entry per subagent run whose result named its agentId: where its transcript is, and the model it resolved to. */
+  subagentRuns: SubagentRun[];
   /** Assistant replies that restated the request as a brief (a Goal and an Acceptance line). */
   briefs: number;
   lastAssistantText: string;
@@ -65,6 +81,24 @@ export interface LiveSession {
   totalMs: number | null;
   started: string | null;
   ended: string | null;
+}
+
+export interface SubagentRun {
+  id: string;
+  type: string;
+  model: string | null;
+}
+
+/** One model's tokens as a row records them; cache_create includes cache_create_1h. */
+export interface TokenBucket {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_create: number;
+  cache_create_1h?: number;
+  calls?: number;
+  /** The calls whose prompt passed LONG_PROMPT. */
+  long?: { input: number; output: number; cache_read: number; cache_create: number; cache_create_1h?: number };
 }
 
 export interface HeavyResult {
@@ -84,7 +118,8 @@ export interface WindowFacts {
   /** Prompts that read as a correction or a standing instruction (isCorrection). */
   corrections: number;
   calls: number;
-  models: Record<string, { input: number; output: number; cache_read: number; cache_create: number; calls: number }>;
+  /** The main thread's tokens per model (subagents are in a row's agents_usage). */
+  models: Record<string, TokenBucket>;
   tokens: { input: number; output: number; cache_read: number; cache_create: number; cache_hit: number | null; tool_results: number };
   tools: { calls: number; failed: number; repeated_failures: number; subagents: number; agents: Record<string, number> };
   /** Task prompts in the window (classifyPrompt), their mean rubric score, and the briefs the agent wrote. */
@@ -99,6 +134,8 @@ export interface WindowFacts {
 }
 
 export const HEAVY_TOKENS: number;
+export const LONG_PROMPT: number;
+export function modelBuckets(models: Record<string, ModelStats> | unknown): Record<string, TokenBucket>;
 export function emptySession(sessionId?: string): LiveSession;
 export function addTranscriptLines(acc: LiveSession, text: string): LiveSession;
 export function parseTranscript(text: string, sessionId?: string): LiveSession;
@@ -119,6 +156,8 @@ export interface WindowRow extends WindowFacts {
   recorded_at: string;
   /** The setup the window ran under: the kit version, and `measure` for a measure-only baseline install. */
   setup?: { kit: string | null; mode: 'measure' | 'full' };
+  /** The window's subagent runs by type: how many, and their tokens per model (read from their own transcripts). */
+  agents_usage?: Record<string, { runs: number; models: Record<string, TokenBucket> }>;
 }
 
 export interface MetricSpec {

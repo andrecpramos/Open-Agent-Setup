@@ -13,6 +13,7 @@ import { evalRouting } from '../lib/routing.mjs';
 import { evalOutcomes } from '../lib/outcomes.mjs';
 import { evals } from '../lib/evals.mjs';
 import { report } from '../lib/report.mjs';
+import { usage } from '../lib/usage.mjs';
 import { startEvalBoard, evalBoardJson } from '../lib/eval-board.mjs';
 import { exportSkills } from '../lib/export.mjs';
 import { lint } from '../lib/lint.mjs';
@@ -56,6 +57,14 @@ ${c.bold('Project commands')}
       --reset-hooks     re-add hook handlers you removed from settings.json
       (selection flags above change what is installed)
   status [project]    Health: version, drift, pending merges, links, sdlc config, learnings  (--all)
+  usage [project]     What the work cost, model by model, and what routing it across the model tiers
+                      saved — main thread and subagents, priced with kit/models.json and the
+                      project's overrides — with the quality of routed windows beside the rest
+      --all             every registered project   --last n   --json
+      --vs <ref>        compare with: main (each window's main model, the default), a tier
+                        (frontier | high | medium | low) or a model id
+      --session <id>    one session instead of the recorded windows (current: the live one)
+      --transcript f    one transcript file, its subagents included
   uninstall <project> Remove exactly what the kit added; keep anything modified or project-owned
 
 ${c.bold('Kit commands')}  (run in the kit)
@@ -282,6 +291,16 @@ async function main(argv) {
             });
         case 'report':
             return report({ harvest: Boolean(flags.harvest), md: typeof flags.md === 'string' ? flags.md : null, scorecards: typeof flags.scorecards === 'string' ? flags.scorecards : null });
+        case 'usage':
+            return usage({
+                project: positionals[0] ?? null,
+                all: Boolean(flags.all),
+                last: number(flags.last, 0),
+                vs: typeof flags.vs === 'string' ? flags.vs : undefined,
+                session: typeof flags.session === 'string' ? flags.session : null,
+                transcript: typeof flags.transcript === 'string' ? flags.transcript : null,
+                json: Boolean(flags.json),
+            });
         case 'evals':
             return evals({
                 project: typeof flags.project === 'string' && flags.project ? flags.project : null,

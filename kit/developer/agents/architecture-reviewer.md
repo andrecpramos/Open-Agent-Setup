@@ -2,7 +2,8 @@
 name: architecture-reviewer
 description: Read-only architecture review of a change or design — derives the real dependency graph, counts boundary violations, checks data ownership and failure paths, applies the second-X test, and returns findings with evidence, smallest fixes, and which decisions need an ADR or a gate. Use proactively for changes that cross modules or layers or add a dependency, service, queue or datastore, and before merging a design. Never modifies code.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: opus
+effort: high
 memory: project
 skills:
   - architecture

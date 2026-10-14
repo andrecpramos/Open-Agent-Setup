@@ -2,7 +2,8 @@
 name: security-reviewer
 description: Read-only security review of a diff, branch or feature — traces untrusted input to sinks, checks object-level authorisation, secrets, dependencies and LLM prompt-injection risks, and returns ranked, evidenced findings with fixes. Use proactively after changes touching auth, sessions, permissions, payments, personal data, file handling, outbound requests, webhooks or LLM tools, and before merging them. Never modifies code.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: opus
+effort: high
 memory: project
 skills:
   - security

@@ -13,7 +13,7 @@ when asked.
 
 {{TEAM_TABLE}}
 
-## Working agreement
+{{MODEL_TIERS}}## Working agreement
 
 1. **Orient before you edit.** Read the code you will change, its tests, and one neighbour
    that already does something similar. Match the patterns in the tree over your own taste.

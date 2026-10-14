@@ -91,10 +91,12 @@ describe('install into a fresh repository (standard profile, any agent)', () => 
         assert.match(a, /pnpm install --frozen-lockfile/);
         assert.match(a, /pnpm run typecheck/);
         assert.match(a, /<!-- agent-setup:begin -->[\s\S]*## How work flows here[\s\S]*## Working agreement[\s\S]*<!-- agent-setup:end -->/);
-        assert.match(a, /\| Review \| `code-reviewer` \| a change across several files or layers/);
+        assert.match(a, /\| Review \| `code-reviewer` \| high \| a change across several files or layers/);
+        assert.match(a, /### Model tiers[\s\S]*\| Tier \| Use it for \| Claude \| OpenAI \| Gemini \|/, "no tool named: every provider's column");
+        assert.match(a, /\| high \| [^|]+ \| `claude-opus-5-5` · high \| `gpt-6\.1-sol` · high \| `gemini-3\.1-pro-preview` \|/, 'model ids, not Claude Code aliases, without the claude target');
         assert.match(a, /## Learning loop/, 'the admin role brings the learning loop');
         assert.match(a, /\| `sdlc-init` · `self-improve` · `enforcement-audit` \| For whoever maintains the setup, run by name only/);
-        assert.match(a, /\| Explore \| `scout` \|[\s\S]*\| Review \| `security-reviewer` \|[\s\S]*\| Verify \| `gate-runner` \|/, 'the team table reads in the order of the cycle');
+        assert.match(a, /\| Explore \| `scout` \|[\s\S]*\| Plan \| `planner` \|[\s\S]*\| Build \| `implementer` \|[\s\S]*\| Verify \| `gate-runner` \|[\s\S]*\| Review \| `security-reviewer` \|[\s\S]*\| Docs \| `doc-writer` \|/, 'the team table reads in the order of the cycle');
         assert.match(a, /\.agents\/skills/);
         assert.match(a, /\.agents\/agents/);
         assert.doesNotMatch(a, /## Claude Code/, 'no Claude Code section without the target');
@@ -634,7 +636,7 @@ describe('selection options', () => {
         const skills = readdirSync(join(repo, '.agents', 'skills')).sort();
         assert.deepEqual(skills, [...CORE, ...ADMIN].sort());
         const agents = readdirSync(join(repo, '.agents', 'agents')).sort();
-        assert.deepEqual(agents, ['code-reviewer.md', 'docs-keeper.md', 'gate-runner.md', 'scout.md']);
+        assert.deepEqual(agents, ['code-reviewer.md', 'doc-writer.md', 'docs-keeper.md', 'gate-runner.md', 'implementer.md', 'planner.md', 'scout.md']);
     });
     test('--targets claude still keeps the one copy in .agents/; gemini adds GEMINI.md', () => {
         const a = nodeApp();
@@ -967,6 +969,13 @@ describe('lint keeps the repository tidy', () => {
     suite.cases[0].need = ['agent:docs-keeper'];
     suite.fixture = 'missing';
     writeFileSync(routing, JSON.stringify(suite, null, 2));
+    // An agent off its tier's model, and a tier model with no price.
+    const scout = join(copy, 'kit', 'developer', 'agents', 'scout.md');
+    writeFileSync(scout, readFileSync(scout, 'utf8').replace(/^model: haiku$/m, 'model: sonnet'));
+    const models = join(copy, 'kit', 'models.json');
+    const table = JSON.parse(readFileSync(models, 'utf8'));
+    delete table.prices['gpt-6-luna'];
+    writeFileSync(models, JSON.stringify(table, null, 2));
     const l = spawnSync(process.execPath, [join(copy, 'bin', 'agent-setup.mjs'), 'lint'], { cwd: copy, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
     const out = `${l.stdout}${l.stderr}`;
     test('fails', () => assert.equal(l.status, 1, out));
@@ -989,6 +998,10 @@ describe('lint keeps the repository tidy', () => {
         assert.match(out, /scope names unknown agent "agent:nope"/);
         assert.match(out, /need names "agent:docs-keeper", which is not in the suite's scope/);
         assert.match(out, /fixture "missing" is not a folder under evals\//);
+    });
+    test('an agent whose model is not its tier, and a tier model nobody can price', () => {
+        assert.match(out, /kit\/developer\/agents\/scout\.md\n\s+✖ error\s+model "sonnet" but the catalog puts it on the low tier: `model: haiku`/);
+        assert.match(out, /provider "openai", tier "low": no price for gpt-6-luna/);
     });
 });
 // ---------------------------------------------------------------------------
@@ -1143,5 +1156,97 @@ describe('eval-routing: trigger suites and scorecards', () => {
         const r = runCli(['eval-routing', '--suite', 'nope']);
         assert.equal(r.code, 1);
         assert.match(r.out, /--suite must be routing, trigger or all/);
+    });
+});
+// ---------------------------------------------------------------------------
+// Model tiers: the agents of tools that read their own format, and the usage report
+// ---------------------------------------------------------------------------
+describe('model tiers in projects', () => {
+    test('the codex target writes each agent as a Codex custom agent on its tier, and update and uninstall keep it exact', () => {
+        const repo = makeRepo();
+        const r = runCli(['install', repo, '--targets', 'codex', '--profile', 'standard']);
+        assert.equal(r.code, 0, r.out);
+        assert.ok(existsSync(join(repo, '.agents', 'models.json')), 'the tiers and prices travel with the kit');
+        const scout = read(join(repo, '.codex', 'agents', 'scout.toml'));
+        assert.match(scout, /^name = "scout"$/m);
+        assert.match(scout, /^model = "gpt-6-luna"$/m);
+        assert.match(scout, /^model_reasoning_effort = "high"$/m);
+        assert.match(scout, /^sandbox_mode = "read-only"$/m, 'an agent that never writes runs read-only');
+        assert.match(scout, /^developer_instructions = '''\nYou are a scout\./m);
+        const impl = read(join(repo, '.codex', 'agents', 'implementer.toml'));
+        assert.match(impl, /^model = "gpt-6\.1-sol"$/m);
+        assert.match(impl, /^model_reasoning_effort = "medium"$/m);
+        assert.doesNotMatch(impl, /sandbox_mode/, 'an agent that writes keeps the session sandbox');
+        assert.match(read(join(repo, '.codex', 'agents', 'security-reviewer.toml')), /Your procedure is in `\.agents\/skills\/security\/SKILL\.md`/);
+        assert.ok(manifest(repo).files['.codex/agents/scout.toml'], 'recorded by hash like every kit file');
+        const agentsMd = read(join(repo, 'AGENTS.md'));
+        assert.match(agentsMd, /\| Tier \| Use it for \| OpenAI \|/, 'Codex alone: only its provider');
+        // The project runs its low tier on another model: update writes it into the agent.
+        const cfgPath = join(repo, '.agents', 'sdlc.config.json');
+        const cfg = json(cfgPath);
+        cfg.models = { tiers: { openai: { low: { model: 'gpt-6-sol', effort: 'low' } } } };
+        writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+        assert.equal(runCli(['update', repo]).code, 0);
+        assert.match(read(join(repo, '.codex', 'agents', 'scout.toml')), /^model = "gpt-6-sol"$/m);
+        assert.match(read(join(repo, '.codex', 'agents', 'scout.toml')), /^model_reasoning_effort = "low"$/m);
+        assert.match(read(join(repo, 'AGENTS.md')), /\| low \| [^|]+ \| `gpt-6-sol` · low \|/);
+        assert.equal(runCli(['uninstall', repo]).code, 0);
+        assert.equal(existsSync(join(repo, '.codex', 'agents', 'scout.toml')), false);
+        assert.equal(existsSync(join(repo, '.agents', 'models.json')), false);
+    });
+    test("a project's own Codex agent of the same name wins, and a locally edited kit one is kept", () => {
+        const repo = makeRepo();
+        mkdirSync(join(repo, '.codex', 'agents'), { recursive: true });
+        writeFileSync(join(repo, '.codex', 'agents', 'scout.toml'), 'name = "scout"\ndescription = "ours"\ndeveloper_instructions = "ours"\n');
+        const r = runCli(['install', repo, '--targets', 'codex', '--profile', 'minimal']);
+        assert.match(r.out, /\.codex\/agents\/scout\.toml is the project's own/);
+        assert.match(read(join(repo, '.codex', 'agents', 'scout.toml')), /description = "ours"/);
+        assert.equal(manifest(repo).files['.codex/agents/scout.toml'], undefined);
+        const planner = join(repo, '.codex', 'agents', 'planner.toml');
+        writeFileSync(planner, `${read(planner)}# our note\n`);
+        runCli(['update', repo, '--profile', 'standard']);
+        assert.match(read(planner), /# our note/, 'a modified kit file is never overwritten');
+    });
+});
+describe('agent-setup usage', () => {
+    const dir = tempDir('as-usage-');
+    const transcript = join(dir, 's1.jsonl');
+    const line = (v) => JSON.stringify(v);
+    writeFileSync(transcript, [
+        line({ type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: 'Where are invoices listed?' }, timestamp: '2026-10-01T10:00:00Z' }),
+        line({ type: 'assistant', message: { id: 'm1', model: 'claude-opus-5-5', usage: { input_tokens: 10, output_tokens: 1000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, content: [{ type: 'tool_use', id: 'a1', name: 'Agent', input: { subagent_type: 'scout', prompt: 'map it' } }] } }),
+        line({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a1', content: 'src/billing.mjs:3' }] }, toolUseResult: { status: 'completed', agentId: 'x1', agentType: 'scout', resolvedModel: 'claude-haiku-5-5' } }),
+        line({ type: 'cost-state', totalCostUSD: 0.0213 }),
+    ].join('\n'));
+    mkdirSync(join(dir, 's1', 'subagents'), { recursive: true });
+    writeFileSync(join(dir, 's1', 'subagents', 'agent-x1.jsonl'), line({ type: 'assistant', message: { id: 's1', model: 'claude-haiku-5-5', usage: { input_tokens: 30000, output_tokens: 2000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, content: [{ type: 'text', text: 'map' }] } }));
+    test('prices one transcript with its subagents, and sets it against the main model', () => {
+        const r = runCli(['usage', '--transcript', transcript]);
+        assert.equal(r.code, 0, r.out);
+        // opus: 10 × $4 + 1000 × $20 = $0.02004; haiku: 30000 × $0.10 + 2000 × $0.50 = $0.004 → $0.024
+        assert.match(r.out, /high\s+claude-opus-5-5\s+1\s/);
+        assert.match(r.out, /low\s+claude-haiku-5-5\s+1\s/);
+        assert.match(r.out, /total\s+\$0\.024/);
+        assert.match(r.out, /Claude Code's own figure for the session: \$0\.021/);
+        assert.match(r.out, /delegated down\s+scout 1: \$0\.004, on the main model \$0\.160 — up to \$0\.156 saved/);
+        const j = JSON.parse(runCli(['usage', '--transcript', transcript, '--json', '--vs', 'low']).stdout);
+        assert.equal(j.reference.name, 'low');
+        assert.ok(j.reference.cost < j.total, 'everything on the low tier would have cost less');
+    });
+    test("reads a project's recorded windows, and leaves a baseline's out", () => {
+        const repo = makeRepo({ learnings: true });
+        const row = (setup) => line({ v: 1, session_id: setup, window: 0, recorded_at: '2026-10-02T10:00:00Z', setup: { kit: '2.0.0', mode: setup }, models: { 'claude-sonnet-5-5': { input: 0, output: 1e6, cache_read: 0, cache_create: 0, calls: 3 } } });
+        writeFileSync(join(repo, '.agents', 'learnings', 'eval-windows.jsonl'), `${row('full')}\n${row('measure')}\n`);
+        const r = runCli(['usage', repo]);
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /Model usage · 1 window/);
+        assert.match(r.out, /total\s+\$10\.00/);
+        assert.match(r.out, /1 baseline window\(s\) left out/);
+        assert.match(r.out, /no subagent runs recorded/);
+    });
+    test('a session that cannot be found is an error, not an empty report', () => {
+        const r = runCli(['usage', makeRepo(), '--session', 'current']);
+        assert.equal(r.code, 1);
+        assert.match(r.out, /no live session recorded/);
     });
 });

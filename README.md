@@ -26,7 +26,8 @@ they install nothing.
 | **Safety rails** (called *hooks*) | Small scripts that run on their own and stop a dangerous command before it runs: a push straight to production, a force-push, or anything that would throw away work you haven't committed. |
 | **Checks before "done"** | After an edit, the agent runs the test or check that covers it. If it changed code since the last passing check, it is asked to check again before it says "done". |
 | **A brief for big or risky work** | Before touching login, payments, data, production or secrets, the agent writes a short plan — the goal, what is in and out, how you'll know it's done — that you can correct in one line. |
-| **Reviewers** | Helper agents give a second opinion on risky changes: correctness, security, architecture. |
+| **Helpers on the right model** | Helper agents plan, build, review and document, each on the model that is worth its price for that step: searches and docs on a small, cheap model, building on a mid-size one, plans and reviews on the strongest, the hardest work on the top one. For Claude, Codex and Gemini. |
+| **Cost you can see** | One command shows what the work cost, model by model, what handing steps to cheaper helpers saved, and whether the checks held up while it did. |
 
 What it is **not**: no npm packages, nothing installed globally, nothing that runs inside your
 application, nothing sent anywhere, and none of your files overwritten. It is plain text and
@@ -230,9 +231,11 @@ my-app/
 │   ├── README.md          what each part is, who edits it, and how to remove it
 │   ├── skills/            the playbooks
 │   ├── hooks/             the safety-rail scripts
+│   ├── models.json        which model each kind of work runs on, and what each costs
 │   └── sdlc.config.json   your branches and checks
-├── .claude/               only for Claude Code: turns the hooks on, adds the reviewers
-├── .cursor/hooks.json …   only for the other agents you chose: turns the same hooks on there
+├── .claude/               only for Claude Code: turns the hooks on, adds the helper agents
+├── .codex/agents/ …       only for the other agents you chose: the helpers in Codex's format,
+├── .cursor/hooks.json …   and the same hooks turned on there
 └── .gitignore             a few lines for files that stay on each computer
 ```
 
@@ -274,17 +277,37 @@ The kit's own skills come with test cases, so each one is measured against the s
 working without it. The two design skills come from other open-source projects
 ([credits below](#third-party-skills-and-licences)).
 
-### Reviewers
+### Helper agents, each on its model
 
-| Agent | Steps in when |
-|---|---|
-| `scout` | there is a lot of code to read; it returns a map of where things are, not whole files |
-| `code-reviewer` | a change touches several files or layers, or is risky |
-| `security-reviewer` | login, permissions, payments, personal data, uploads, webhooks, AI tools |
-| `architecture-reviewer` | a new module, dependency, service or database |
-| `gate-runner` | before a commit or pull request: answers MERGE-SAFE or BLOCKED |
+| Agent | Steps in when | Model tier |
+|---|---|---|
+| `scout` | there is a lot of code to read; it returns a map of where things are, not whole files | low |
+| `planner` | a feature or change across layers: it turns the brief into small, checkable steps | high (frontier for critical work) |
+| `implementer` | an agreed plan to build: one step at a time, with the step's check | medium |
+| `gate-runner` | before a commit or pull request: answers MERGE-SAFE or BLOCKED | low |
+| `code-reviewer` | a change touches several files or layers, or is risky | high |
+| `security-reviewer` | login, permissions, payments, personal data, uploads, webhooks, AI tools | high (frontier when money, auth or data loss is at stake) |
+| `architecture-reviewer` | a new module, dependency, service or database | high |
+| `doc-writer` | the changelog, README and docs for a finished change | low |
 
 Agents that cannot run helper agents follow the same checklists themselves.
+
+**The tiers.** Four levels, each a model per provider ([kit/models.json](kit/models.json), with
+the price of each and where it came from):
+
+| Tier | For | Claude | OpenAI (Codex) | Gemini |
+|---|---|---|---|---|
+| frontier | the hardest work: critical plans, bugs that survived two attempts | Fable | GPT-6 Astra | Gemini 3.1 Pro, high thinking |
+| high | planning, reviews, debugging | Opus | GPT-6.1 Sol, high effort | Gemini 3.1 Pro |
+| medium | building to a plan, tests, routine fixes | Sonnet | GPT-6.1 Sol, medium effort | Gemini 3.8 Flash |
+| low | searching, check output, docs, mechanical edits | Haiku | GPT-6 Luna | Gemini 3.5 Flash-Lite |
+
+Small work stays on your session's model: a helper starts cold and re-reads what you already
+have, so it pays only for bigger steps. In Claude Code each helper carries its model; in Codex
+the install writes the same helpers as Codex agents (`.codex/agents/`) on the OpenAI column; any
+other agent reads the table in `AGENTS.md`. A project can run a tier on another model, or use
+its own prices, in `.agents/sdlc.config.json` ([docs/PLAYBOOK.md](docs/PLAYBOOK.md#configuration)).
+`agent-setup usage <project>` shows what it all cost and what the routing saved.
 
 ### Safety rails (hooks)
 
@@ -295,7 +318,7 @@ They stay silent until something needs doing.
 | `guard-git` | blocks writes to production, force-pushes to shared branches, commands that throw away uncommitted work, and skipping git's own checks, and names the safer alternative each time. Pull requests are the normal path and pass |
 | `check-gates` | right after an edit, runs the quick check that edit could have broken |
 | `stop-check` | when the agent is about to finish with code changed since the last passing check, asks once for the check |
-| `prompt-intake` | for a big or risky request, asks for the brief before the first edit; everything else passes silently |
+| `prompt-intake` | for a big or risky request, asks for the brief before the first edit; for a docs task or a plan to build, names the cheaper helper to hand it to; everything else passes silently |
 | `branch-check` | at the start of a session, speaks up only when the branch needs attention |
 
 The hooks stop the agent early, but the real safety net for production is **branch protection
@@ -345,7 +368,7 @@ agent sees, so a week or two of normal work becomes the baseline. Then
 | `/self-improve retro` | turns the lessons the agent noted into a guard rule, a check, a playbook addition or a note, and sends the ones that apply everywhere back to the kit |
 | `/enforcement-audit` | compares what the repository claims with what it actually enforces, and ranks the gaps |
 | `docs-keeper` | an agent that keeps the knowledge base true after structural changes |
-| `session-eval` (hook) | one row of facts per context window — tokens, checks after the last edit, corrections — at no token cost |
+| `session-eval` (hook) | one row of facts per context window — tokens per model, the helpers' included, checks after the last edit, corrections — at no token cost |
 | `learning-signals` (hook) | notices a correction ("I told you…") so the agent notes the lesson; stops a command that failed three times |
 | `context-budget` (hook) | past 150k tokens, asks the agent to delegate, read less and hand off |
 
@@ -366,7 +389,8 @@ the numbers to watch: [docs/PLAYBOOK.md](docs/PLAYBOOK.md).
 | `agent-setup status <project>` | version, local changes, links, settings, lessons waiting |
 | `agent-setup update <project>` / `--all` | bring one project, or every project, to the current kit |
 | `agent-setup uninstall <project>` | remove what the kit added |
-| `node .agents/hooks/session-eval.mjs --summary` | inside a Claude Code project: how its sessions went |
+| `agent-setup usage <project>` / `--all` | what the work cost, model by model and tier by tier; what routing steps to cheaper helpers saved; whether quality held (`--session current` for the live session, `--vs high` to compare with one tier) |
+| `node .agents/hooks/session-eval.mjs --summary` · `--usage` | inside a Claude Code project: how its sessions went, and what they cost |
 
 | In the kit | |
 |---|---|

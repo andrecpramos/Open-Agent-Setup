@@ -60,6 +60,8 @@ import type { KitManifest } from './state.mjs';
 import { licenseFiles } from './vendor.mjs';
 import { AGENT_HOOKS, HOOK_AGENTS, addKitHooks, isEmptyHookFile, isHookAgent, presentKeys, removeKitHooks, wantedKeys } from './agent-hooks.mjs';
 import type { HookAgent } from './agent-hooks.mjs';
+import { codexAgent, isTier, modelsFor } from './models.mjs';
+import type { ModelTable } from '../kit/hooks/_usage.mjs';
 
 export interface SyncOptions {
   mode?: string;
@@ -168,9 +170,11 @@ export type SyncCatalog = Catalog;
 /** What project detection reports: the shared DetectedProject. */
 export type DetectionInfo = DetectedProject;
 
-/** One kit-owned file sync wants in the project. */
+/** One kit-owned file sync wants in the project: a copy of `src`, or `content` built from it. */
 export interface DesiredFile {
   src: string;
+  /** Written instead of copying `src`: a kit agent rendered in another tool's format. */
+  content?: string;
   kind: string;
   unit?: string;
 }
@@ -221,7 +225,11 @@ const LEGACY_PROJECT_OWNED: string[] = ['sdlc.config.json', 'learnings', 'overla
 const SKILL_EXCLUDE = (rel: string): boolean => rel.startsWith('evals/') || rel.includes('-workspace/');
 
 // A measure-only baseline installs the recorder and nothing that changes how the agent works.
-const MEASURE_HOOKS: Set<string> = new Set(['_config.mjs', '_transcript.mjs', '_prompt.mjs', 'session-eval.mjs', 'setup-clone.mjs']);
+const MEASURE_HOOKS: Set<string> = new Set(['_config.mjs', '_transcript.mjs', '_prompt.mjs', '_usage.mjs', 'session-eval.mjs', 'setup-clone.mjs']);
+// The model tiers and prices, where the hooks and the agents read them.
+const MODELS_REL: string = `${HOME}/models.json`;
+/** Codex reads its custom agents from .codex/agents/<name>.toml. */
+const codexAgentRel = (name: string): string => `.codex/agents/${name}.toml`;
 
 /** The role a hook script serves (catalog `hooks`); shared modules (`_*.mjs`) serve every role. */
 const hookRole = (catalog: Catalog, file: string): Role | null =>
@@ -235,11 +243,15 @@ function desiredFiles(
   skipped: Set<string>,
   { hooks, mode, targets, roles }: { hooks?: boolean; mode?: string; targets: string[]; roles: Role[] },
   catalog: Catalog,
+  table: ModelTable,
+  codexSkipped: Set<string>,
 ): Map<string, DesiredFile> {
   const out = new Map<string, DesiredFile>();
   const claude: boolean = targets.includes('claude');
   // Agents other than Claude Code run the same hooks through run-hook.mjs.
   const others: boolean = targets.some(isHookAgent);
+  // The tiers and prices: the recorder prices sessions with them, a baseline's included.
+  out.set(MODELS_REL, { src: join(KIT_DIR, 'models.json'), kind: 'support' });
   if (mode === 'measure') {
     for (const f of MEASURE_HOOKS) out.set(`${HOOK_DIR_REL}/${f}`, { src: join(KIT_DIR, 'hooks', f), kind: 'hook', unit: f });
     out.set(`${HOME}/learnings/README.md`, { src: join(KIT_DIR, 'templates', 'learnings-README.md'), kind: 'support' });
@@ -259,7 +271,14 @@ function desiredFiles(
     if (lic) out.set(`${HOME}/${lic}`, { src: join(LICENSES_DIR, basename(lic)), kind: 'license' });
   }
   for (const a of selection.agents) {
-    if (!skipped.has(a.name)) out.set(`${agentsDirRel(targets)}/${a.name}.md`, { src: a.file, kind: 'agent', unit: a.name });
+    if (skipped.has(a.name)) continue;
+    out.set(`${agentsDirRel(targets)}/${a.name}.md`, { src: a.file, kind: 'agent', unit: a.name });
+    // Codex reads its own format: the same agent, on its tier's OpenAI model.
+    const meta = catalog.agents?.[a.name];
+    if (targets.includes('codex') && isTier(meta?.tier) && !codexSkipped.has(a.name)) {
+      const content: string = codexAgent(a.name, a.file, meta.tier, { table, sandbox: meta.sandbox, version: kitVersion() });
+      out.set(codexAgentRel(a.name), { src: a.file, content, kind: 'agent', unit: a.name });
+    }
   }
   for (const f of listFiles(join(KIT_DIR, 'hooks'))) {
     if (!f.endsWith('.mjs') || f.includes('/')) continue;
@@ -432,7 +451,17 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
   const skippedSet: Set<string> = new Set([...skipped.skills, ...skipped.agents]);
 
   // --- Hooks: a locally modified _config.mjs would break every other hook ---
-  const desired = desiredFiles(selection, skippedSet, selOpts, catalog);
+  // A project's own Codex agent of the same name wins over the kit's rendering of it.
+  const table: ModelTable = modelsFor(target);
+  const codexSkipped: Set<string> = new Set();
+  if (selOpts.targets.includes('codex')) {
+    for (const a of selection.agents) {
+      const rel: string = codexAgentRel(a.name);
+      if (!skippedSet.has(a.name) && exists(plan.abs(rel)) && !(rel in prevFiles)) codexSkipped.add(a.name);
+    }
+  }
+  const desired = desiredFiles(selection, skippedSet, selOpts, catalog, table, codexSkipped);
+  for (const a of codexSkipped) L.notes.push(`${codexAgentRel(a)} is the project's own: the kit's ${a} agent was not written for Codex`);
   let hooksBlocked: boolean = false;
   if (selOpts.hooks) {
     const rel = `${HOOK_DIR_REL}/_config.mjs`;
@@ -450,12 +479,13 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
   for (const [rel, item] of desired) {
     const dest = plan.abs(rel);
     const cur = hashFile(dest);
-    const want = hashFile(item.src) as string;
+    const want = (item.content !== undefined ? hashText(item.content) : hashFile(item.src)) as string;
     const recorded = prevFiles[rel];
+    const put = (to: string): void => (item.content !== undefined ? plan.write(to, item.content) : plan.copy(to, item.src));
 
     if (item.kind === 'hook' && hooksBlocked && item.unit !== 'setup-clone.mjs') {
       if (cur !== want) {
-        plan.copy(`${rel}.kit-new`, item.src);
+        put(`${rel}.kit-new`);
         L.conflicts.push(rel);
       }
       if (recorded !== undefined) nextFiles[rel] = recorded;
@@ -464,12 +494,12 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
 
     if (recorded !== undefined) {
       if (cur === null) {
-        plan.copy(rel, item.src);
+        put(rel);
         L.restored.push(rel);
         nextFiles[rel] = want;
       } else if (cur === recorded) {
         if (want !== cur) {
-          plan.copy(rel, item.src);
+          put(rel);
           L.updated.push(rel);
         }
         nextFiles[rel] = want;
@@ -477,7 +507,7 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
         L.adopted.push(rel);
         nextFiles[rel] = want;
       } else {
-        plan.copy(`${rel}.kit-new`, item.src);
+        put(`${rel}.kit-new`);
         L.conflicts.push(rel);
         nextFiles[rel] = recorded;
       }
@@ -485,14 +515,14 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
     }
 
     if (cur === null) {
-      plan.copy(rel, item.src);
+      put(rel);
       L.added.push(rel);
       nextFiles[rel] = want;
     } else if (cur === want) {
       L.adopted.push(rel);
       nextFiles[rel] = want;
     } else {
-      plan.copy(`${rel}.kit-new`, item.src);
+      put(`${rel}.kit-new`);
       L.conflicts.push(rel);
     }
   }
@@ -649,6 +679,7 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
     targets: selOpts.targets,
     hooks: selOpts.hooks && !hooksBlocked,
     roles: selOpts.roles,
+    models: table,
   });
   const created: Record<string, string> = { ...(prev?.created ?? {}) };
   const blocks: Set<string> = new Set(prev?.blocks ?? []);

@@ -25,7 +25,9 @@ import { homedir } from 'node:os';
 // The transcript parser is shared with the session-eval hook, so it lives in kit/hooks/.
 import { compareWindows, parseTranscript, readRows } from '../kit/hooks/_transcript.mjs';
 import { homeDir } from './paths.mjs';
-import type { LiveSession } from '../kit/hooks/_transcript.mjs';
+import type { LiveSession, ModelStats } from '../kit/hooks/_transcript.mjs';
+import { costOf, priceFor } from '../kit/hooks/_usage.mjs';
+import { kitModels } from './models.mjs';
 export { emptySession, addTranscriptLines, parseTranscript } from '../kit/hooks/_transcript.mjs';
 export type { LiveSession, ModelStats, SessionPrompt, ToolEntry } from '../kit/hooks/_transcript.mjs';
 // ---------------------------------------------------------------------------
@@ -542,20 +544,11 @@ export function judgeRouting(prompt: unknown, skills: SkillInfo[], activated: st
             : `Heuristic guess was ${top}, but the agent loaded ${activated.join(' → ')}. Worth asking why — prediction is a keyword guess, activation is transcript fact.`,
     };
 }
-// Rough public rates, USD per 1M tokens. Update as pricing changes; the board
+// The prices are kit/models.json's, the table every cost in the kit uses; the board
 // prefers the transcript's real cost-state and marks these as estimates.
-const MODEL_RATES: Array<{ prefix: string; rate: { inputPerM: number; outputPerM: number } }> = [
-    { prefix: 'claude-haiku', rate: { inputPerM: 1, outputPerM: 5 } },
-    { prefix: 'claude-sonnet', rate: { inputPerM: 3, outputPerM: 15 } },
-    { prefix: 'claude-opus', rate: { inputPerM: 15, outputPerM: 75 } },
-];
-export function estimateCost(model: string, input: number, output: number): number | null {
-    const lower = model.toLowerCase();
-    for (const r of MODEL_RATES) {
-        if (lower.startsWith(r.prefix))
-            return (input * r.rate.inputPerM + output * r.rate.outputPerM) / 1_000_000;
-    }
-    return null;
+export function estimateCost(model: string, tokens: Partial<ModelStats>): number | null {
+    const t = tokens ?? {};
+    return costOf(priceFor(kitModels(), model), { input: t.input ?? 0, output: t.output ?? 0, cache_read: t.cacheRead ?? 0, cache_create: t.cacheCreate ?? 0, cache_create_1h: t.cacheCreate1h ?? 0 });
 }
 export function readPointer(projectDir: string): SessionPointer | null {
     const raw = readTextOrNull(join(homeDir(resolve(projectDir), 'learnings'), 'live-session.json'));
@@ -761,7 +754,7 @@ export function snapshotLive(projectDir: string, opts: SnapshotOptions = {}): Li
             let est = 0;
             let known = false;
             for (const [model, m] of Object.entries(stats.models)) {
-                const e = estimateCost(model, m.input, m.output);
+                const e = estimateCost(model, m);
                 if (e !== null) {
                     est += e;
                     known = true;
@@ -789,7 +782,7 @@ export function snapshotLive(projectDir: string, opts: SnapshotOptions = {}): Li
         });
         for (const [model, m] of Object.entries(stats.models)) {
             const e = m.costUsd !== null ? { cost: m.costUsd, est: false } : (() => {
-                const v = estimateCost(model, m.input, m.output);
+                const v = estimateCost(model, m);
                 return v !== null ? { cost: v, est: true } : { cost: null, est: false };
             })();
             models.push({ model, input: m.input, output: m.output, calls: m.calls, costUsd: e.cost, estimated: e.est });

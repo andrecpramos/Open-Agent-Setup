@@ -135,7 +135,7 @@ export function status(targetArg: string | null | undefined, { quiet = false }: 
   if (missing.length) problems.push(`${missing.length} kit file(s) missing: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ' …' : ''} — run update to restore`);
   if (modified.length) warnings.push(`${modified.length} kit file(s) modified locally: ${modified.slice(0, 5).join(', ')}${modified.length > 5 ? ' …' : ''} — move project-specific changes to .agents/overlays/, or export universal ones with /self-improve`);
 
-  const kitNew = [HOME_REL, '.claude'].flatMap((d) => listFiles(join(target, d)).filter((f) => f.endsWith('.kit-new')).map((f) => `${d}/${f}`));
+  const kitNew = [HOME_REL, '.claude', '.codex'].flatMap((d) => listFiles(join(target, d)).filter((f) => f.endsWith('.kit-new')).map((f) => `${d}/${f}`));
   if (kitNew.length) warnings.push(`${kitNew.length} pending .kit-new file(s) to merge: ${kitNew.slice(0, 5).join(', ')}`);
 
   const targets: string[] = m.selection?.targets ?? ['claude', 'agents']; // 1.x manifests may predate the field
@@ -383,7 +383,7 @@ export function list(): void {
     say('');
   }
   say(c.bold('Agents'));
-  for (const [a, e] of agentIndex()) say(`  ${a.padEnd(27)} ${c.dim(e.role.padEnd(9))} ${catalog.agents?.[a]?.summary ?? ''}`);
+  for (const [a, e] of agentIndex()) say(`  ${a.padEnd(27)} ${c.dim(e.role.padEnd(9))} ${c.dim(String(catalog.agents?.[a]?.tier ?? '—').padEnd(9))} ${catalog.agents?.[a]?.summary ?? ''}`);
   say('', c.bold('Hooks'));
   for (const [h, meta] of Object.entries(catalog.hooks ?? {})) say(`  ${h.padEnd(27)} ${c.dim(String(meta.role).padEnd(9))} ${meta.summary ?? ''}`);
   say('', `${c.bold('Profiles')}  ${c.dim(`(default: ${catalog.defaultProfile}; @core is always included, @admin with the admin role)`)}`);

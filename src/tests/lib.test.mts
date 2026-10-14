@@ -114,8 +114,8 @@ describe('selection: profiles and groups', () => {
 
   test('agents come only with the skills they require', () => {
     const minimal = resolveSelection(catalog, { profile: 'minimal' });
-    assert.deepEqual(minimal.agents.map((a) => a.name).sort(), ['code-reviewer', 'docs-keeper', 'gate-runner', 'scout'], 'the scout and the code reviewer require no skill, so every profile gets them');
+    assert.deepEqual(minimal.agents.map((a) => a.name).sort(), ['code-reviewer', 'doc-writer', 'docs-keeper', 'gate-runner', 'implementer', 'planner', 'scout'], 'the agents that require no skill come with every profile');
     const noScout = resolveSelection(catalog, { profile: 'minimal', exclude: ['scout'] });
-    assert.deepEqual(noScout.agents.map((a) => a.name).sort(), ['code-reviewer', 'docs-keeper', 'gate-runner']);
+    assert.deepEqual(noScout.agents.map((a) => a.name).sort(), ['code-reviewer', 'doc-writer', 'docs-keeper', 'gate-runner', 'implementer', 'planner']);
   });
 });

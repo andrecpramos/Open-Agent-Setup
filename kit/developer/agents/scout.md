@@ -3,6 +3,7 @@ name: scout
 description: Read-only exploration in its own context — finds where something is implemented, traces how a flow works end to end, or lists the files a change will touch, and returns a short map with file:line references instead of file contents. Use proactively before any change that needs more than a handful of files read, for "where is…", "how does … work" and "what uses …" questions, and whenever the context-budget note appears, so large reads stay out of the main conversation. Never modifies anything.
 tools: Read, Grep, Glob, Bash
 model: haiku
+effort: low
 color: cyan
 ---
 
