@@ -22,21 +22,22 @@ Agent_Setup/
 ├── src/bin/*.mts             the CLI entry point source; emits bin/agent-setup.mjs
 ├── src/tests/*.mts           the test sources (node:test); emits tests/*.test.mjs
 ├── bin/agent-setup.mjs        the CLI (Node 18+, zero runtime dependencies; build output, never hand-edit)
-├── lib/                       CLI modules: sync (install/update), vendor, export, routing (routing, trigger and delegation evals), outcomes (the kit against vanilla), evals (the summary rows), report (the weekly cycle), lint, settings merge, blocks, detect (build output)
+├── lib/                       CLI modules: sync (install/update), models (the tiers, other tools' agent files), vendor, export, routing (routing, trigger and delegation evals), outcomes (the kit against vanilla), evals (the summary rows), usage (cost and routing savings), report (the weekly cycle), lint, settings merge, blocks, detect (build output)
 ├── scripts/                   build.mjs (typecheck with tsc, emit to lib/ and bin/) and test.mjs (every suite, on Node 18+)
 ├── tsconfig.json              strict TS config for src/ (typescript + @types/node are dev-only)
 ├── kit/                       THE PAYLOAD — what an install copies into a project
 │   ├── developer/             the developer role
 │   │   ├── skills/            13 skills — domain, the delivery workflow, the two design skills (own and vendored side by side)
-│   │   ├── agents/            5 subagents — the review team (code, security, architecture), the gate runner and the scout
+│   │   ├── agents/            8 subagents, each on a model tier — scout, planner, implementer, gate runner, the review team (code, security, architecture), doc writer
 │   │   └── licenses/          one licence per upstream source of the vendored skills
 │   ├── admin/                 the admin role
 │   │   ├── skills/            sdlc-init, self-improve, enforcement-audit — run by name only
 │   │   └── agents/            docs-keeper
-│   ├── catalog.json           the roles, each skill's group (domain · core · design · admin), the agents, each hook's role, the profiles
+│   ├── catalog.json           the roles, each skill's group (domain · core · design · admin), the agents and their tiers, each hook's role, the profiles
+│   ├── models.json            the model tiers: each provider's model and effort per tier, and every model's price
 │   ├── vendor.json            the vendored skills, every local override with its why, the upstream skills left out
 │   ├── vendor.lock.json       the exact upstream commits
-│   ├── hooks/                 the runtime hooks of both roles and setup-clone; _transcript.mjs and _prompt.mjs are shared with the CLI
+│   ├── hooks/                 the runtime hooks of both roles and setup-clone; _transcript.mjs, _prompt.mjs and _usage.mjs are shared with the CLI
 │   ├── templates/             AGENTS.md, managed blocks and the Claude Code section, the team guide (.agents/WORKFLOW.md), learnings and overlay scaffolds
 │   └── settings.fragment.json hook wiring and permissions merged into a project
 ├── inbox/                     kit-improvement proposals harvested from projects
@@ -95,6 +96,7 @@ have no overlay line (they are never edited); the `frontend` overlay says how th
 │   ├── sdlc.config.json       provisional contract from git (project-owned; /sdlc-init verifies)
 │   ├── README.md              what this folder is: each part, who edits it, how to remove it all
 │   ├── WORKFLOW.md            the developers' one-page guide
+│   ├── models.json            the model tiers and prices (the session recorder and `usage` price sessions with them)
 │   ├── skills/<skill>/        the one copy of each selected skill (evals stay in the kit)
 │   ├── licenses/<source>.txt  the kit's notice, and the licence of each upstream source a selected skill comes from
 │   ├── agents/*.md            the agents as procedures (without the claude target)
@@ -103,7 +105,7 @@ have no overlay line (they are never edited); the `frontend` overlay says how th
 │   └── overlays/README.md     how to adapt a skill without forking it
 └── .claude/                   only with the claude target
     ├── settings.json          hooks (exec form, run from .agents/hooks/) and permissions, merged
-    ├── agents/*.md            the kit subagents, where Claude Code reads them
+    ├── agents/*.md            the kit subagents, where Claude Code reads them (each names its tier's model)
     ├── skills/<skill>  →      per clone, git-ignored: link to .agents/skills/<skill>
     └── licenses        →      per clone, git-ignored: link to .agents/licenses (when a vendored skill is installed)
 ```
@@ -204,7 +206,8 @@ rather than write an incomplete one.
 |---|---|---|
 | Instructions | `AGENTS.md`, read natively (a project's own `CLAUDE.md` imports it) | `AGENTS.md` (Gemini: `GEMINI.md` → `@./AGENTS.md`) |
 | Skills | `.claude/skills/` links to `.agents/skills/` (auto-selected by description) | `.agents/skills/` (Agent Skills readers); any agent can open a `SKILL.md` as AGENTS.md instructs |
-| Subagents | `.claude/agents/` | `.agents/agents/` as procedures to follow inline (each reviewer's checklist also lives in its skill) |
+| Subagents | `.claude/agents/`, each on its tier's model alias and effort | Codex: `.codex/agents/<name>.toml`, the same agents on the OpenAI model of their tier. Others: `.agents/agents/` as procedures to follow inline (each reviewer's checklist also lives in its skill) |
+| Model tiers | the agents' `model`/`effort`; the AGENTS.md "Model tiers" table for its own routing | the AGENTS.md table, with the column of each targeted provider (all of them for tools that run any provider's models) |
 | Guards | Claude Code hooks (Bash and PowerShell tools) + branch protection on the host | the same hooks through `run-hook.mjs` in Codex, Cursor, Copilot, Antigravity and Windsurf (below); branch protection on the host; AGENTS.md instructions |
 | Admin skills | invoked by name only (`disable-model-invocation`): no context cost | ordinary skills (the key is ignored) |
 | Learning signals | hooks (corrections, friction) | AGENTS.md instructions |
@@ -218,6 +221,28 @@ Agent Skills spec by their overrides. Skills name no single vendor's tools and l
 by relative path, so they work in agents without skill auto-loading. For
 tools with their own skill folders (Windsurf, Roo, Kiro, Goose), `npx skills add <export> -a
 <agent>` installs the same skills from an export.
+
+**Model tiers.** `kit/models.json` is the one place for models: four tiers (frontier, high,
+medium, low), the model and reasoning effort each provider runs a tier on, and every model's
+price, with its source and the date it was checked. Each agent names its tier in the catalog;
+lint holds its Claude Code file to the tier's alias and effort, the installer renders the same
+agent for Codex on the tier's OpenAI model, and the AGENTS.md block gets the table with the
+routing rule (size first; down for searching, building and docs, up for plans and reviews;
+escalate on evidence). Claude Code needs no rendering: its aliases resolve per provider, and a
+project re-points one with `ANTHROPIC_DEFAULT_*_MODEL`. A project's `models` section in
+`sdlc.config.json` overrides prices and tier models without touching the kit's copy; the next
+`update` re-renders what depends on it. Gemini CLI's subagents are experimental and Copilot
+names models by display name, so both get the table, not agent files.
+
+**What it cost.** The session recorder keeps each window's tokens per model, the 1-hour cache
+writes apart from the 5-minute ones, and — read from each subagent's own transcript
+(`<session>/subagents/agent-<id>.jsonl`) — every run's tokens by agent type.
+`kit/hooks/_usage.mjs` prices them with the project's table and prints the report
+(`agent-setup usage`, or `session-eval.mjs --usage` in the project): cost per model and tier,
+each subagent run priced again on its window's main model (saved by delegating down, paid for
+escalating up), the total against one reference model, and the quality metrics of routed windows
+beside the rest. On a Claude Code session it lands within rounding of Claude Code's own cost
+figure, which it prints beside it.
 
 **Hooks in other agents.** Codex (`.codex/hooks.json`), Cursor (`.cursor/hooks.json`), GitHub
 Copilot (`.github/hooks/agent-setup.json`, a file of the kit's own), Antigravity (a named set in
@@ -248,7 +273,7 @@ folders; `.agents/rules/`, `.agents/workflows/`, `.gemini/` or `GEMINI.md` (Anti
 | `branch-check` (SessionStart) | a new context window whose branch needs attention (production, detached, stale, a wrong config) | Claude Code |
 | `guard-git` (PreToolUse) | before a shell command runs | Claude Code (Bash, PowerShell) |
 | `check-gates` (PostToolUse) | after an edit to a configured path | Claude Code |
-| `prompt-intake` (UserPromptSubmit) | a large or risky task prompt (auth, payments, data, production, secrets): asks for a brief (goal, scope, acceptance, assumptions, risks) before the first edit; silent otherwise | Claude Code |
+| `prompt-intake` (UserPromptSubmit) | a large or risky task prompt (auth, payments, data, production, secrets): asks for a brief (goal, scope, acceptance, assumptions, risks) before the first edit; a documentation task or a plan of three or more steps to build: names the cheaper agent to hand it to (doc-writer, implementer); silent otherwise | Claude Code |
 | `learning-signals` (admin) | user prompt (corrections), tool failure (friction); at session start only the live-session pointer | Claude Code |
 | `session-eval` (admin; PreCompact, SessionEnd, SessionStart) | at the end of every context window it records facts; the session-start summary line is opt-in (`workflow.sessionSummary`); blocks nothing | Claude Code |
 | `stop-check` (Stop) | when a turn ends with code changed after the last passing check: blocks once per edit | Claude Code |
@@ -266,9 +291,15 @@ The enforcement register (`enforcement-audit`) records, for each rule, which of 
   {link: target}`, `skipped`, `created`, `blocks`, `settings.added`, `settings.removedByUser`,
   `agentHooks {file: {added, removed}}`.
 - **Catalog** (`kit/catalog.json`): `roles`, `groups`, skills with group and summary, agents with the
-  skills they require and the `step` and `when` of the AGENTS.md team table, `hooks` with their
+  skills they require, the `step` and `when` of the AGENTS.md team table, their `tier` and, for one
+  that never writes, `sandbox: read-only`, `hooks` with their
   role and summary, the `core` list, `profiles` (skill names or `@group`, or `"*"`),
   `defaultProfile`.
+- **Model tiers** (`kit/models.json`, installed as `.agents/models.json`): `asOf`, `tiers {name:
+  {use}}`, `families {name: tier}` (older models by family), `providers {name: {label, agents,
+  source, tiers {tier: {model, alias?, effort?}}}}`, `prices {model: {input, output, cacheRead,
+  cacheWrite, cacheWrite1h, long?: {above, …}}}` in USD per million tokens. A project's
+  `models` section (`prices`, `tiers`, `reference`) merges over it.
 - **Vendoring** (`kit/vendor.json`): `repos` (GitHub source, SPDX licence, `watch` folder),
   `skills` (name, repo, path, overrides, `why`), `excluded` (with `why`);
   `kit/vendor.lock.json`: `repos` (commits), `skills`.
@@ -287,5 +318,7 @@ The enforcement register (`enforcement-audit`) records, for each rule, which of 
 - **Session rows** (`.agents/learnings/eval-windows.jsonl`, local): per context window, facts
   only — tokens and cache, tools and the subagents used, prompt quality (task prompts, how many
   say how done is checked, briefs written), verification after the last edit, unbacked claims,
-  waste — and the `setup` it ran under (`measure` or `full`).
+  waste — and the `setup` it ran under (`measure` or `full`). `models` holds the main thread's
+  tokens per model (`cache_create_1h` is the part of `cache_create` written for an hour; `long`, the
+  calls whose prompt passed 100k); `agents_usage {type: {runs, models}}` the subagents'.
 - **sdlc config**: `kit/admin/skills/sdlc-init/assets/sdlc.config.schema.json`.

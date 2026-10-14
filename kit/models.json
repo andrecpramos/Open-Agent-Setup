@@ -1,0 +1,84 @@
+{
+  "$comment": "The model tiers: which model and reasoning effort each kind of work runs on, per provider, and what each model costs. One place for all of it: the installer reads it to write the AGENTS.md tier table and each agent's model for every targeted tool, lint checks the agents against it, and the usage report prices recorded sessions with it. An install copies it to .agents/models.json; a project adapts it in .agents/sdlc.config.json under `models` (its own prices, another model for a tier), never here. Prices are USD per million tokens at the standard tier, for prompts up to the `long.above` threshold where one is given; `cacheWrite` is the 5-minute cache write and `cacheWrite1h` the 1-hour one (Claude Code writes the main conversation's cache for an hour and a subagent's for five minutes). Check them against each provider's `source` when `asOf` gets old.",
+  "asOf": "2026-10-12",
+  "tiers": {
+    "frontier": { "use": "the hardest work: a plan for critical or cross-cutting change, a bug that survived two attempts, a security review where money, auth or data loss is at stake" },
+    "high": { "use": "planning M and L work, reviewing a change, debugging, decisions that are expensive to reverse" },
+    "medium": { "use": "building to a plan, writing tests, routine fixes and refactors" },
+    "low": { "use": "searching and mapping code, summarising check output, docs and changelog, mechanical edits" }
+  },
+  "families": {
+    "$comment": "Older or unlisted models of a family belong to its tier, so a session recorded on last year's models is still grouped and priced.",
+    "fable": "frontier",
+    "mythos": "frontier",
+    "opus": "high",
+    "sonnet": "medium",
+    "haiku": "low",
+    "astra": "frontier",
+    "sol": "high",
+    "luna": "low",
+    "pro": "high",
+    "flash-lite": "low",
+    "flash": "medium"
+  },
+  "providers": {
+    "anthropic": {
+      "label": "Claude",
+      "agents": ["claude"],
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "tiers": {
+        "frontier": { "model": "claude-fable-5-1", "alias": "fable", "effort": "xhigh" },
+        "high": { "model": "claude-opus-5-5", "alias": "opus", "effort": "high" },
+        "medium": { "model": "claude-sonnet-5-5", "alias": "sonnet", "effort": "medium" },
+        "low": { "model": "claude-haiku-5-5", "alias": "haiku", "effort": "low" }
+      }
+    },
+    "openai": {
+      "label": "OpenAI",
+      "agents": ["codex"],
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "tiers": {
+        "frontier": { "model": "gpt-6-astra", "effort": "xhigh" },
+        "high": { "model": "gpt-6.1-sol", "effort": "high" },
+        "medium": { "model": "gpt-6.1-sol", "effort": "medium" },
+        "low": { "model": "gpt-6-luna", "effort": "high" }
+      }
+    },
+    "google": {
+      "label": "Gemini",
+      "agents": ["gemini", "antigravity"],
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "tiers": {
+        "frontier": { "model": "gemini-3.1-pro-preview", "effort": "high" },
+        "high": { "model": "gemini-3.1-pro-preview" },
+        "medium": { "model": "gemini-3.8-flash" },
+        "low": { "model": "gemini-3.5-flash-lite" }
+      }
+    }
+  },
+  "prices": {
+    "claude-fable-5-1": { "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite": 12.5, "cacheWrite1h": 20 },
+    "claude-mythos-5-1": { "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite": 12.5, "cacheWrite1h": 20 },
+    "claude-fable-5": { "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5, "cacheWrite1h": 20 },
+    "claude-opus-5-5": { "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite": 5, "cacheWrite1h": 8 },
+    "claude-opus-5": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25, "cacheWrite1h": 10 },
+    "claude-opus-4-8": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25, "cacheWrite1h": 10 },
+    "claude-opus-4-7": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25, "cacheWrite1h": 10 },
+    "claude-opus-4-6": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25, "cacheWrite1h": 10 },
+    "claude-sonnet-5-5": { "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "cacheWrite1h": 4 },
+    "claude-sonnet-5": { "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "cacheWrite1h": 4 },
+    "claude-sonnet-4-6": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWrite1h": 6 },
+    "claude-haiku-5-5": {
+      "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite": 0.125, "cacheWrite1h": 0.2,
+      "long": { "above": 100000, "input": 0.5, "output": 2.5, "cacheRead": 0.05, "cacheWrite": 0.625, "cacheWrite1h": 1 }
+    },
+    "claude-haiku-4-5": { "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25, "cacheWrite1h": 2 },
+    "gpt-6-astra": { "input": 10, "output": 50, "cacheRead": 1 },
+    "gpt-6.1-sol": { "input": 2, "output": 10, "cacheRead": 0.1 },
+    "gpt-6-sol": { "input": 2, "output": 10, "cacheRead": 0.2 },
+    "gpt-6-luna": { "input": 0.1, "output": 0.5, "cacheRead": 0.01 },
+    "gemini-3.1-pro-preview": { "input": 2, "output": 12, "cacheRead": 0.2 },
+    "gemini-3.8-flash": { "input": 0.75, "output": 3.75, "cacheRead": 0.075 },
+    "gemini-3.5-flash-lite": { "input": 0.3, "output": 2.5, "cacheRead": 0.03 }
+  }
+}

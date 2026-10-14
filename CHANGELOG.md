@@ -13,6 +13,47 @@ reported); a selection that named one drops it, with a note; the git hooks an ea
 added leave each clone at its next Claude Code session start, or with
 `node .agents/hooks/setup-clone.mjs`.
 
+- **Model tiers: every step on the model that is worth its price.** Four tiers — frontier,
+  high, medium, low — each a model and reasoning effort per provider (Claude: Fable, Opus,
+  Sonnet, Haiku; OpenAI: GPT-6 Astra, GPT-6.1 Sol at high and medium effort, GPT-6 Luna;
+  Gemini: 3.1 Pro, 3.8 Flash, 3.5 Flash-Lite), with every model's price, its source and the
+  date it was checked, in the new `kit/models.json` (installed as `.agents/models.json`). Each
+  agent names its tier in the catalog, and lint holds its file's `model` and `effort` to it.
+  AGENTS.md gets a "Model tiers" table and the routing rule: size first, searching, building
+  and docs go down, plans and reviews go up, escalation only on evidence.
+- **Three new agents, and the existing ones moved to their tier.** `planner` (high; frontier
+  for critical work) turns a brief into steps, each with its files, its check and the tier that
+  should build it; `implementer` (medium) builds one step at a time and returns its check;
+  `doc-writer` (low) writes the docs and changelog for a finished change. The reviewers moved
+  from the session's model to high (`opus`, effort high); `gate-runner` from `sonnet` to low,
+  and `docs-keeper` with it; the scout stays low. The deliver skill routes each step by size
+  and tier, and its report says who did which step on which tier.
+- **`prompt-intake` hands down work a cheaper model does as well.** A documentation task gets
+  one line naming the `doc-writer`, and a plan of three or more steps to build one naming the
+  `implementer`, when they are installed; everything else stays silent. Measured on real runs:
+  without the line, a top model writes both out itself whatever the agents' descriptions and
+  AGENTS.md say; with it, the docs went to the doc-writer and each plan step to the implementer.
+- **Codex runs the same agents on OpenAI models.** With the `codex` target, the install writes
+  each agent as a Codex custom agent (`.codex/agents/<name>.toml`) on its tier's model and
+  effort, read-only where the agent never writes. A project's own file of that name wins.
+- **`agent-setup usage`: what the work cost, and what the routing saved.** Cost per model and
+  tier from the recorded windows, the subagents included (each run read from its own
+  transcript); each subagent run priced again on the window's main model, so delegating down
+  shows the most it saved (a ceiling: the subagent's cold start is priced as if the main thread
+  had spent it) and escalating up its premium; the total against one reference (`--vs main`, a
+  tier or a model); and the quality metrics of routed windows beside the rest.
+  `--session current` or `--transcript <file>` reads one session, with Claude Code's own cost
+  figure beside it as a cross-check. Inside a project, `session-eval.mjs --usage` prints the
+  same; `sessionSummary` adds a cost line at session start; `evals` and `report` show it too.
+- **The session recorder prices exactly.** Rows keep the 1-hour cache writes apart from the
+  5-minute ones (Claude Code writes the main conversation's cache for an hour, at twice the
+  input price), the calls whose prompt passed 100k tokens (Haiku 5.5's second rate card), and
+  `agents_usage`: each subagent type's runs and tokens per model.
+- **A project's own models and prices.** `sdlc.config.json` takes a `models` section: its own
+  rates (`prices`), another model for a tier (`tiers`, written into the Codex agents on
+  update), and the `reference` the usage report compares with. The eval board prices with the
+  same table; its old built-in rates are gone.
+
 - **Two roles: developer and admin.** `kit/developer/` holds what developers' agents use day to
   day — the domain skills, the delivery workflow, the review team, the guard hooks. `kit/admin/`
   holds what sets the kit up and keeps it improving — `sdlc-init`, `self-improve`,

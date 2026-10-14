@@ -13,6 +13,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { compareSets, compareWindows, formatMetric, METRICS, readRows, windowsSince } from '../kit/hooks/_transcript.mjs';
 import type { WindowRow } from '../kit/hooks/_transcript.mjs';
+import { usageLine, usageReport } from '../kit/hooks/_usage.mjs';
+import { kitModels } from './models.mjs';
 import { KIT_ROOT, homeDir, kitVersion, sdlcConfigPath } from './paths.mjs';
 import { listProjects, readManifest } from './state.mjs';
 import { harvest, status } from './commands.mjs';
@@ -135,6 +137,9 @@ export function nextActions(projects: ProjectHealth[], suites: SuiteSummary[], r
       if (off) out.push({ rank: 6, why: `${m.label}: ${r.shown} (target ${formatMetric(m.format, m.target)})`, run: 'docs/PLAYBOOK.md §3 names the lever; the retro finds the windows behind it' });
     }
   }
+  // A model the price table does not know is costed at $0: the usage numbers would be wrong.
+  const unpriced: string[] = kitRows.length ? usageReport(kitRows.slice(-100), kitModels()).unpriced : [];
+  if (unpriced.length) out.push({ rank: 6, why: `no price for ${unpriced.join(', ')}: the usage report counts it as $0`, run: 'add it to kit/models.json (its price, with the source, and the family it belongs to), then lint' });
   for (const s of suites) {
     for (const b of s.weakest.filter((w) => w.total && w.passed / w.total < 0.7)) out.push({ rank: 7, why: `${s.suite}: ${b.bucket} ${b.passed}/${b.total}`, run: `rewrite the description or the cases, then agent-setup eval-routing --suite all --skill ${b.bucket.split('/')[0]} --save` });
     for (const l of (s.lift ?? []).filter((x) => x.lift !== null && x.lift <= 0)) out.push({ rank: 7, why: `${l.skill} adds nothing over vanilla (lift ${l.lift})`, run: `sharpen its "mistakes that matter", or drop it; then agent-setup eval-outcomes --skill ${l.skill} --save` });
@@ -181,6 +186,8 @@ export function report(opts: ReportOptions = {}): number {
       md.push(`| ${r.label} | ${r.shown} | ${r.prevShown} | ${t === undefined ? '' : formatMetric(METRICS.find((m) => m.key === r.key)!.format, t)} |`);
     }
   } else md.push('No windows recorded with the kit yet.');
+  const cost: string = usageLine(usageReport(kitRows.slice(-20), kitModels()));
+  if (cost) md.push('', `Model usage, last ${Math.min(20, kitRows.length)} window(s): ${cost}. By model and tier: \`agent-setup usage --all\`.`);
 
   if (opts.md) {
     const file = resolve(opts.md);
@@ -201,6 +208,7 @@ export function report(opts: ReportOptions = {}): number {
     );
   }
   if (!projects.length) say(c.dim('  none registered'));
-  say('', c.dim('Detail: agent-setup evals (scorecards and session metrics) · agent-setup status --all · --md <file> to share this report'), '');
+  if (cost) say('', `${c.bold('Model usage')}  last ${Math.min(20, kitRows.length)} window(s): ${cost}`);
+  say('', c.dim('Detail: agent-setup evals (scorecards and session metrics) · agent-setup usage --all (cost by model and tier) · agent-setup status --all · --md <file> to share this report'), '');
   return 0;
 }

@@ -2,7 +2,8 @@
 name: code-reviewer
 description: Read-only review of a change against its brief — checks that the diff does what was asked and nothing else, finds correctness bugs (edge cases, error paths, concurrency, data handling), checks that tests prove the new behaviour, and returns ranked findings with evidence and the smallest fix. Use proactively after a change that spans several files or layers, or touches anything risky, before reporting it done, committing or opening a PR — a small fix in one place needs only its check; and whenever the user asks to "review my changes", "check this diff" or "anything wrong with this?". Never modifies code. For security-sensitive changes use security-reviewer as well; for boundaries and dependencies, architecture-reviewer.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: opus
+effort: high
 memory: project
 color: yellow
 ---

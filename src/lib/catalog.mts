@@ -30,9 +30,13 @@ export interface SkillMeta {
 export interface AgentMeta {
   requires?: string[];
   summary?: string;
-  /** The delivery step it serves (Explore, Review, Verify, Docs) and when to delegate to it: the AGENTS.md team table. */
+  /** The delivery step it serves (Explore, Plan, Build, Verify, Review, Docs) and when to delegate to it: the AGENTS.md team table. */
   step?: string;
   when?: string;
+  /** The model tier it runs on (kit/models.json): its file's model and effort, and every tool's copy, follow it. */
+  tier?: string;
+  /** `read-only`: it never writes, for tools that enforce a sandbox (Codex). */
+  sandbox?: string;
   [key: string]: unknown;
 }
 

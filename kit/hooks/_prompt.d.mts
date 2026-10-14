@@ -43,4 +43,6 @@ export function scorePrompt(prompt: unknown): PromptScore;
 export function improvePrompt(prompt: unknown, result?: PromptScore): string;
 export function risksOf(message: unknown): string[];
 export function intakeFor(message: unknown): Intake | null;
+/** The cheaper agent to hand a task to: docs (doc-writer), build (implementer), or null. */
+export function routeFor(message: unknown): 'docs' | 'build' | null;
 export function promptFacts(prompts: unknown): PromptFacts;

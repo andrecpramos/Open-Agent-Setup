@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { makeRepo, runHook, guard, gitIn, cleanupTemp, tempDir, writeConfig, TWO_TRUNK, HOOKS } from './helpers.mjs';
 import { parseTranscript, windowSlice, windowFacts, claimsVerification, isCorrection, windowMetrics, compareWindows, summaryLine, summaryTable, costUnits, HEAVY_TOKENS, } from '../kit/hooks/_transcript.mjs';
 import { classifyPrompt, intakeFor, promptFacts } from '../kit/hooks/_prompt.mjs';
+import { costOf, mergeModels, normalizeModel, priceFor, readModels, tiersOf, usageLine, usageReport, usageText } from '../kit/hooks/_usage.mjs';
 after(cleanupTemp);
 // ---------------------------------------------------------------------------
 describe('guard-git: production writes (two-trunk, on develop)', () => {
@@ -940,6 +941,22 @@ describe('prompt-intake', () => {
         assert.match(out(ask(repo, 'Build the new onboarding flow end to end: welcome emails, profile setup and a progress bar', session)).note, /INTAKE — It is a large request/);
         assert.equal(ask(repo, 'and also make the subject lines shorter please', session).stdout, '', 'a short refinement');
     });
+    test('a docs task and a plan to build are routed to the cheaper agent, when the project has it', () => {
+        const repo = makeRepo();
+        const docs = 'Write docs/api.md documenting every route in src/server.mjs, with an example request and response for each';
+        const plan = 'The plan is agreed, build it: 1) add voidInvoice in src/billing.mjs 2) add the POST route in src/server.mjs 3) add the tests';
+        assert.equal(ask(repo, docs).stdout, '', 'no doc-writer installed: nothing to route to');
+        mkdirSync(join(repo, '.claude', 'agents'), { recursive: true });
+        writeFileSync(join(repo, '.claude', 'agents', 'doc-writer.md'), '---\nname: doc-writer\n---\n');
+        mkdirSync(join(repo, '.codex', 'agents'), { recursive: true });
+        writeFileSync(join(repo, '.codex', 'agents', 'implementer.toml'), 'name = "implementer"\n');
+        assert.match(out(ask(repo, docs)).note, /^ROUTE — Do not write these docs yourself: delegate them now to the doc-writer agent, which runs on the low tier/);
+        const built = out(ask(repo, plan)).note;
+        assert.match(built, /^ROUTE — Do not type this plan out yourself: delegate the steps now to the implementer agent/, "Codex's agent folder counts, and the route comes first");
+        for (const p of ['Fix the crash in src/report/export.mjs and update the README to match', 'Why is the README out of date with the CLI flags?', 'Add pagination to the invoices list endpoint, with tests for the edge cases']) {
+            assert.doesNotMatch(ask(repo, p).stdout, /ROUTE/, p);
+        }
+    });
     test('risky work names the reviewer and the deliver skill when the project has them; it can be turned off', () => {
         const repo = makeRepo();
         mkdirSync(join(repo, '.claude', 'agents'), { recursive: true });
@@ -1007,5 +1024,136 @@ describe('window facts: prompts, briefs, subagents and setup', () => {
         const row = JSON.parse(readFileSync(join(repo, '.agents', 'learnings', 'eval-windows.jsonl'), 'utf8').trim());
         assert.deepEqual(row.setup, { kit: '9.9.9', mode: 'measure' });
         assert.equal(runHook('session-eval.mjs', { hook_event_name: 'SessionStart', source: 'startup' }, { cwd: repo }).stdout, '');
+    });
+});
+// ---------------------------------------------------------------------------
+// Model tiers and the usage report (_usage.mjs), and what session-eval records for them
+// ---------------------------------------------------------------------------
+const MODELS = readModels(join(HOOKS, '..', 'models.json'));
+const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
+const out1 = (output) => ({ input: 0, output, cache_read: 0, cache_create: 0, cache_create_1h: 0, calls: 1 });
+describe('model tiers and the usage report', () => {
+    test('prices every kind of token: input, output, cache reads, 5-minute and 1-hour cache writes, long prompts', () => {
+        const opus = priceFor(MODELS, 'claude-opus-5-5');
+        // 1M each of input ($4), output ($20) and cache reads ($0.20); 1M cache writes, 400k of them for an hour: 600k × $5 + 400k × $8.
+        assert.ok(near(costOf(opus, { input: 1e6, output: 1e6, cache_read: 1e6, cache_create: 1e6, cache_create_1h: 4e5 }), 30.4));
+        const haiku = priceFor(MODELS, 'claude-haiku-5-5');
+        // 1M input, 400k of it in calls whose prompt passed 100k: 600k × $0.10 + 400k × $0.50.
+        assert.ok(near(costOf(haiku, { input: 1e6, output: 0, cache_read: 0, cache_create: 0, long: { input: 4e5, output: 0, cache_read: 0, cache_create: 0 } }), 0.26));
+        const luna = priceFor(MODELS, 'gpt-6-luna');
+        assert.ok(near(costOf(luna, { input: 0, output: 0, cache_read: 0, cache_create: 1e6 }), 0.1), 'no cache-write price: billed as input');
+        assert.equal(costOf(null, { input: 1, output: 1, cache_read: 0, cache_create: 0 }), null);
+    });
+    test('finds a price and a tier by the bare model id, and an unlisted model by its family', () => {
+        assert.equal(normalizeModel('us.anthropic.claude-haiku-4-5-20251001-v1:0'), 'claude-haiku-4-5');
+        assert.equal(normalizeModel('claude-opus-4-5@20251101'), 'claude-opus-4-5');
+        assert.equal(normalizeModel('claude-sonnet-5-5[1m]'), 'claude-sonnet-5-5');
+        assert.ok(priceFor(MODELS, 'anthropic.claude-opus-5-5'));
+        assert.deepEqual(tiersOf(MODELS, 'claude-sonnet-5-5'), ['medium']);
+        assert.deepEqual(tiersOf(MODELS, 'gpt-6.1-sol'), ['high', 'medium'], 'one model can serve two tiers at two efforts');
+        assert.deepEqual(tiersOf(MODELS, 'claude-opus-4-1'), ['high'], 'an older Opus is still the high tier');
+        assert.deepEqual(tiersOf(MODELS, 'gemini-2.5-flash-lite'), ['low'], 'flash-lite, not flash');
+        assert.deepEqual(tiersOf(MODELS, 'mystery-9'), []);
+    });
+    test("a project's overrides: its own prices, another model for a tier, the reference", () => {
+        const t = mergeModels(MODELS, { prices: { 'claude-opus-5-5': { input: 3 } }, tiers: { openai: { low: 'gpt-6-sol' } }, reference: 'high' });
+        assert.equal(priceFor(t, 'claude-opus-5-5')?.input, 3);
+        assert.equal(priceFor(t, 'claude-opus-5-5')?.output, 20, "the fields merge over the kit's card");
+        assert.equal(t.providers.openai.tiers.low?.model, 'gpt-6-sol');
+        assert.equal(t.providers.openai.tiers.low?.effort, 'high', 'a model named alone keeps the tier effort');
+        assert.equal(t.reference, 'high');
+        assert.equal(priceFor(MODELS, 'claude-opus-5-5')?.input, 4, "the kit's table is left as it was");
+    });
+    test('the routing math: a run on a lower tier saves the difference, a run on a higher tier costs it', () => {
+        const row = {
+            session_id: 's',
+            window: 0,
+            recorded_at: '2026-10-01T10:00:00Z',
+            models: { 'claude-sonnet-5-5': out1(1e6) },
+            agents_usage: {
+                scout: { runs: 2, models: { 'claude-haiku-5-5': out1(1e6) } },
+                planner: { runs: 1, models: { 'claude-opus-5-5': out1(1e6) } },
+            },
+            verification: { edited: true, after_last_edit: true, passed: true },
+        };
+        const rep = usageReport([row], MODELS);
+        assert.ok(near(rep.total, 30.5), 'main $10 + scout $0.50 + planner $20');
+        assert.deepEqual(rep.routing.down.runs, { scout: 2 });
+        assert.ok(near(rep.routing.down.atMain - rep.routing.down.cost, 9.5), 'the scout on the main model would have cost $10');
+        assert.ok(near(rep.routing.up.cost - rep.routing.up.atMain, 10), 'the planner cost $10 more than the main model');
+        assert.ok(near(rep.reference.cost, 30), 'every step on the main model');
+        assert.equal(rep.quality.routed.windows, 1);
+        assert.equal(rep.quality.routed.checked, 1);
+        const text = usageText(rep);
+        assert.match(text, /delegated down\s+scout 2: \$0\.500, on the main model \$10\.00 — up to \$9\.50 saved/);
+        assert.match(text, /escalated up\s+planner 1: \$20\.00, on the main model \$10\.00 — \$10\.00 more/);
+        assert.match(text, /every step on the main model: \$30\.00, actual \$30\.50 — 2% more/);
+        assert.match(text, /a saving against the main model is a ceiling/, "a subagent's cold start is priced as if the main thread had spent it");
+        // main $10 + scout $0.50, against $10 + the scout's tokens on the main model ($10): 9.5 / 20.
+        assert.match(usageLine(usageReport([{ ...row, agents_usage: { scout: row.agents_usage.scout } }], MODELS)), /· up to 48% below every step on the main model$/);
+        const vsHigh = usageReport([row], MODELS, { reference: 'high' });
+        assert.ok(near(vsHigh.reference.cost, 60), 'every step on the high tier: 3M output at $20');
+        assert.ok(near(vsHigh.reference.share, (60 - 30.5) / 60));
+        assert.match(usageLine(vsHigh), /^\$30\.50 over 1 window \(\$30\.50 each\) · 49% below every step on the high tier$/);
+    });
+    test('a model without a price is costed at $0 and named, never guessed', () => {
+        const rep = usageReport([{ session_id: 's', window: 0, models: { 'mystery-9': out1(10) } }], MODELS);
+        assert.deepEqual(rep.unpriced, ['mystery-9']);
+        assert.match(usageText(rep), /no price for mystery-9/);
+        assert.match(usageText(usageReport([], MODELS)), /No usage recorded yet/);
+    });
+    test('the parser keeps the 1-hour cache writes, the calls with long prompts, and each subagent run', () => {
+        const big = { input_tokens: 5, output_tokens: 10, cache_read_input_tokens: 150000, cache_creation_input_tokens: 300, cache_creation: { ephemeral_5m_input_tokens: 100, ephemeral_1h_input_tokens: 200 } };
+        const s = parseTranscript(jsonl([
+            human('Review it'),
+            { type: 'assistant', message: { id: 'b1', model: 'claude-sonnet-5', usage: big, content: [use('a1', 'Agent', { subagent_type: 'code-reviewer', prompt: 'review' })] } },
+            { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a1', content: 'READY' }] }, toolUseResult: { status: 'completed', agentId: 'cr1', agentType: 'code-reviewer', resolvedModel: 'claude-opus-5-5' } },
+            reply('Reviewed.'),
+        ]));
+        const m = s.models['claude-sonnet-5'];
+        assert.equal(m.cacheCreate1h, 200);
+        assert.equal(m.long?.cacheRead, 150000, 'the first call read a 150k prompt');
+        assert.equal(m.long?.output, 10, 'the short reply is not in the long bucket');
+        assert.deepEqual(s.subagentRuns, [{ id: 'cr1', type: 'code-reviewer', model: 'claude-opus-5-5' }]);
+    });
+});
+describe('session-eval: what subagents used', () => {
+    test("records each run's tokens from its own transcript, and --usage prices main thread and subagents", () => {
+        const repo = makeRepo({ learnings: true });
+        const dir = tempDir('as-transcript-');
+        const transcript = join(dir, 's-sub.jsonl');
+        writeFileSync(transcript, jsonl([
+            human('Find where invoices are listed'),
+            call([use('a1', 'Agent', { subagent_type: 'scout', prompt: 'map the invoice list' })]),
+            { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a1', content: 'src/billing/invoices.mjs:12' }] }, toolUseResult: { status: 'completed', agentId: 'sc1', agentType: 'scout', resolvedModel: 'claude-haiku-5-5' } },
+            reply('It is in src/billing/invoices.mjs.'),
+        ]));
+        mkdirSync(join(dir, 's-sub', 'subagents'), { recursive: true });
+        writeFileSync(join(dir, 's-sub', 'subagents', 'agent-sc1.jsonl'), jsonl([
+            { type: 'user', isSidechain: true, message: { role: 'user', content: 'map the invoice list' } },
+            { type: 'assistant', isSidechain: true, message: { id: 'sm1', model: 'claude-haiku-5-5', usage: { input_tokens: 2000, output_tokens: 500, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, content: [{ type: 'text', text: 'map' }] } },
+        ]));
+        const r = runHook('session-eval.mjs', { hook_event_name: 'SessionEnd', session_id: 's-sub', transcript_path: transcript }, { cwd: repo });
+        assert.equal(r.stdout, '', 'a sensor adds nothing to the context');
+        const row = JSON.parse(readFileSync(join(repo, '.agents', 'learnings', 'eval-windows.jsonl'), 'utf8').trim());
+        assert.deepEqual(row.agents_usage, { scout: { runs: 1, models: { 'claude-haiku-5-5': { input: 2000, output: 500, cache_read: 0, cache_create: 0, cache_create_1h: 0, calls: 1 } } } });
+        assert.ok(row.models['claude-sonnet-5'], 'the main thread stays under models');
+        // --usage prices it with the project's copy of the table.
+        writeFileSync(join(repo, '.agents', 'models.json'), readFileSync(join(HOOKS, '..', 'models.json'), 'utf8'));
+        const usage = spawnSync(process.execPath, [join(HOOKS, 'session-eval.mjs'), '--usage'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, CLAUDE_PROJECT_DIR: repo } });
+        assert.equal(usage.status, 0);
+        assert.match(usage.stdout, /low\s+claude-haiku-5-5\s+1\s/);
+        assert.match(usage.stdout, /medium\s+claude-sonnet-5\s/);
+        assert.match(usage.stdout, /delegated down\s+scout 1: /);
+    });
+    test('the opt-in session-start line adds what the windows cost', () => {
+        const repo = makeRepo({ learnings: true, config: { ...TWO_TRUNK, workflow: { sessionSummary: true } } });
+        writeFileSync(join(repo, '.agents', 'models.json'), readFileSync(join(HOOKS, '..', 'models.json'), 'utf8'));
+        const transcript = join(tempDir('as-transcript-'), 's-cost.jsonl');
+        writeFileSync(transcript, jsonl([human('Rename the helper'), reply('Renamed.')]));
+        runHook('session-eval.mjs', { hook_event_name: 'SessionEnd', session_id: 's-cost', transcript_path: transcript }, { cwd: repo });
+        const start = runHook('session-eval.mjs', { hook_event_name: 'SessionStart', source: 'startup' }, { cwd: repo });
+        assert.match(String(start.json?.systemMessage ?? ''), /\n\$(<)?[\d.]+ over 1 window/);
+        assert.match(String(start.json?.systemMessage ?? ''), /--summary, --usage/);
     });
 });

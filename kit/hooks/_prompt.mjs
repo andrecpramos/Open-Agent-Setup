@@ -145,6 +145,32 @@ export function intakeFor(message) {
   return { score: s.score, words, missing, risks, large };
 }
 
+// A task the main conversation would do on its own model, where a cheaper tier's agent does it
+// as well: documentation, and building a plan someone already wrote. Measured: a top model given
+// either writes it out itself, whatever the agents' descriptions say; a line at the prompt is
+// what moves it. Narrow on purpose — a code change that also mentions the README is not a docs
+// task, and a plan of fewer than three steps costs less built in place.
+const DOCS_RE =
+  /^(?:please\s+)?document\b|\bdocumenting\b|\b(?:write|update|add|create|generate|draft|refresh|rewrite|expand)\b[^.\n]{0,50}?\b(?:docs?|documentation|readme|guide|docstrings?|jsdoc|api reference|changelog)\b|^(?:documenta|escreve|atualiza)\b[^.\n]{0,50}?\b(?:docs?|documenta[çc][ãa]o|readme|guia)\b/i;
+const CODE_RE = /\b(fix|implement|refactor|build|migrate|feature|bug|broken|crash|error|fails?|optimi[sz]e|corrige|implementa|erro)\b/i;
+const PLAN_RE = /\b(plan|steps|plano|passos)\b/i;
+const BUILD_RE = /\b(build|implement|apply|execute|carry out|make|constr[óo]i|implementa|aplica)\b/i;
+
+/**
+ * The cheaper agent a task is better handed to: `docs` (the doc-writer) for a documentation
+ * task with no code change in it, `build` (the implementer) for a plan of three or more steps
+ * to build. Null for everything else, which is nearly everything.
+ */
+export function routeFor(message) {
+  const { kind, words } = classifyPrompt(message);
+  if (kind !== 'task' || words < 8) return null;
+  const text = userText(message);
+  const steps = (text.match(/(?:^|\s)(?:\d+[.)]|[-*•])\s+\S/gm) ?? []).length;
+  if (steps >= 3 && PLAN_RE.test(text) && BUILD_RE.test(text)) return 'build';
+  if (DOCS_RE.test(text) && !CODE_RE.test(text)) return 'docs';
+  return null;
+}
+
 /**
  * Prompt-quality facts for a window's prompts: how many were tasks, their mean
  * score, and how many said how done is checked and what is out of scope.

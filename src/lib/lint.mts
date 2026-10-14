@@ -4,7 +4,8 @@
 //              error. Vendored skills (listed in kit/vendor.json) are rebuilt from upstream
 //              and never hand-edited, so they are held to the Agent Skills spec only — a
 //              style finding in one could not be fixed without forking it.
-//   kit        catalog, agents, hooks, settings fragment, templates, routing suites,
+//   kit        catalog, agents and their model tiers (kit/models.json), hooks, settings
+//              fragment, templates, routing suites,
 //              vendoring record and licences.
 //   repository one place per theme: the tree must match the Layout tables in AGENTS.md;
 //              no two files with the same content; no corrupted text (control characters
@@ -21,6 +22,9 @@ import { agentIndex, loadCatalog, skillDirs, skillIndex, skillsDirOf, agentFiles
 import { readVendor, specProblems } from './vendor.mjs';
 import type { Catalog } from './catalog.mjs';
 import type { VendorLock, VendorManifest } from './vendor.mjs';
+import { MODELS_FILE, isTier } from './models.mjs';
+import { TIERS, normalizeModel, priceFor, readModels } from '../kit/hooks/_usage.mjs';
+import { LONG_PROMPT } from '../kit/hooks/_transcript.mjs';
 
 /** Severity of one lint finding. */
 export type FindingLevel = 'error' | 'warn';
@@ -154,6 +158,7 @@ export function lint({ paths = [] }: LintOptions = {}): LintResult {
 
   if (covers(KIT_DIR)) {
     lintCatalog({ catalog, add, skills });
+    lintModels({ catalog, add });
     lintHooks({ add });
     lintVendor({ vendor, add });
   }
@@ -465,6 +470,67 @@ function lintCatalog({ catalog, add, skills }: { catalog: Catalog; add: AddFindi
     for (const r of meta.requires ?? []) if (!dirs.has(r)) add('error', file, `agent "${a}" requires unknown skill "${r}"`);
   }
   for (const a of agents) if (!catalog.agents?.[a]) add('error', file, `agent "${a}" is not in the catalog`);
+}
+
+/** Prices older than this many days get a warning: providers change them. */
+const PRICES_STALE_DAYS = 180;
+const SANDBOXES = new Set(['read-only', 'workspace-write']);
+
+/**
+ * kit/models.json is complete — every provider runs every tier on a priced model — and every
+ * agent runs on its catalog tier: its file's model is the tier's Claude Code alias and its
+ * effort the tier's effort, so the agent file, the AGENTS.md table and other tools' copies agree.
+ */
+function lintModels({ catalog, add }: { catalog: Catalog; add: AddFinding }): void {
+  const file = MODELS_FILE;
+  const raw = readModels(file);
+  if (!raw) {
+    add('error', file, 'unreadable or not a JSON object');
+    return;
+  }
+  const asOf = typeof raw.asOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.asOf) ? Date.parse(raw.asOf) : NaN;
+  if (!Number.isFinite(asOf)) add('error', file, '`asOf` must be the date the prices were checked (YYYY-MM-DD)');
+  else if ((Date.now() - asOf) / 86_400_000 > PRICES_STALE_DAYS) add('warn', file, `prices last checked ${raw.asOf}: check them against each provider's source and update \`asOf\``);
+  for (const t of TIERS) if (!raw.tiers?.[t]?.use) add('error', file, `tier "${t}" needs a \`use\` line (the AGENTS.md table shows it)`);
+  for (const t of Object.keys(raw.tiers ?? {})) if (!isTier(t)) add('error', file, `unknown tier "${t}" (tiers: ${TIERS.join(', ')})`);
+  for (const [k, v] of Object.entries(raw.families ?? {})) if (!k.startsWith('$') && !isTier(v)) add('error', file, `family "${k}" maps to unknown tier "${v}"`);
+  const priceNums = ['input', 'output', 'cacheRead', 'cacheWrite', 'cacheWrite1h'] as const;
+  for (const [id, p] of Object.entries(raw.prices ?? {})) {
+    if (id !== normalizeModel(id)) add('error', file, `price "${id}" must be listed under its bare id "${normalizeModel(id)}" — lookups normalise before matching`);
+    for (const k of priceNums) {
+      const v = (p as unknown as Record<string, unknown>)[k];
+      if ((k === 'input' || k === 'output' || v !== undefined) && !(typeof v === 'number' && v >= 0)) add('error', file, `price "${id}": ${k} must be a number of USD per million tokens`);
+    }
+    if (p.long !== undefined && p.long.above !== LONG_PROMPT) add('error', file, `price "${id}": long.above must be ${LONG_PROMPT}, the threshold the transcript parser counts long prompts at`);
+  }
+  for (const [name, prov] of Object.entries(raw.providers ?? {})) {
+    if (!prov.label) add('error', file, `provider "${name}" needs a label`);
+    if (!Array.isArray(prov.agents)) add('error', file, `provider "${name}" needs \`agents\`: the install targets that run its models`);
+    for (const t of TIERS) {
+      const spec = prov.tiers?.[t];
+      if (!spec?.model) {
+        add('error', file, `provider "${name}" has no model for tier "${t}"`);
+        continue;
+      }
+      if (!priceFor(raw, spec.model)) add('error', file, `provider "${name}", tier "${t}": no price for ${spec.model} — the usage report could not cost it`);
+      if (name === 'anthropic' && !(spec.alias && MODELS.test(spec.alias) && spec.alias !== 'inherit')) add('error', file, `anthropic tier "${t}" needs the Claude Code alias its agents name (fable, opus, sonnet or haiku)`);
+    }
+  }
+  const claude = raw.providers?.anthropic?.tiers ?? {};
+  for (const [a, meta] of Object.entries(catalog.agents ?? {})) {
+    const at = join(KIT_DIR, 'catalog.json');
+    if (!isTier(meta.tier)) {
+      add('error', at, `agent "${a}" needs a \`tier\` (${TIERS.join(', ')}): the model it runs on`);
+      continue;
+    }
+    if (meta.sandbox !== undefined && !SANDBOXES.has(meta.sandbox)) add('error', at, `agent "${a}": sandbox must be ${[...SANDBOXES].join(' or ')}`);
+    const entry = agentIndex().get(a);
+    const fm = entry ? parseFrontmatter(readText(entry.path) ?? '') : null;
+    if (!entry || !fm?.data) continue;
+    const want = claude[meta.tier];
+    if (want?.alias && fm.data.model !== want.alias) add('error', entry.path, `model "${String(fm.data.model ?? '')}" but the catalog puts it on the ${meta.tier} tier: \`model: ${want.alias}\` (kit/models.json)`);
+    if (want?.effort && fm.data.effort !== want.effort) add('error', entry.path, `effort "${String(fm.data.effort ?? '')}" but the ${meta.tier} tier runs at \`effort: ${want.effort}\` (kit/models.json)`);
+  }
 }
 
 function lintHooks({ add }: { add: AddFinding }): void {

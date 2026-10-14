@@ -11,8 +11,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, renameSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { compareSets, compareWindows, readRows, summaryTable } from '../kit/hooks/_transcript.mjs';
+import { usageLine, usageReport } from '../kit/hooks/_usage.mjs';
 import type { WindowRow } from '../kit/hooks/_transcript.mjs';
 import { KIT_DIR, KIT_ROOT, homeDir } from './paths.mjs';
+import { kitModels, modelsFor } from './models.mjs';
 import { listProjects } from './state.mjs';
 import { liftBySkill } from './outcomes.mjs';
 import { incomparable } from './routing.mjs';
@@ -250,6 +252,8 @@ export function evals(opts: EvalsOptions = {}): number {
   if (!opts.project && !projects.length) say(c.dim('No registered projects: `agent-setup update <project>` registers an existing install.'));
   say(summaryTable(rows, last));
   if (rows.length) say(c.dim(`  ${teamLine(rows.slice(-last))}`));
+  const cost: string = rows.length ? usageLine(usageReport(rows.slice(-last), opts.project ? modelsFor(projects[0]) : kitModels())) : '';
+  if (cost) say(c.dim(`  cost: ${cost} — by model and tier: agent-setup usage ${opts.project ? '<project>' : '--all'}`));
   say('');
   return opts.check && failed ? 1 : 0;
 }

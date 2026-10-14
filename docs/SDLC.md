@@ -194,6 +194,17 @@ request is cheap to correct and is the `deliver` skill's to brief when it loads.
 reminders (lessons waiting, a retro due after `workflow.retroEvery` windows) moved from every
 session start to `agent-setup report`.
 
+**23a · Work a cheaper model does as well is handed to it.** The same hook adds one line when a
+task is documentation (the `doc-writer`, low tier) or a plan of three or more steps to build (the
+`implementer`, medium tier), and the agent is installed. Measured on real runs: a top model
+given either does it itself, whatever the agents' descriptions and AGENTS.md say, and a polite
+"hand it to…" inside the brief note was ignored too; an imperative line, first in the note
+("do not write these docs yourself: delegate them now…"), moved it — docs to the doc-writer,
+each plan step to the implementer. It stays narrow — a code change that also mentions the
+README is not a docs task — because a false routing costs a cold start and a note on every
+prompt teaches everyone to skim. Plans and reviews go up a tier through the agents' own models
+and the deliver skill, which already happen; the hook only handles the way down.
+
 **24 · The switches.** `workflow` in `sdlc.config.json`: `verifyBeforeStop`,
 `contextWarnTokens`, `promptIntake` and `retroEvery` (on by default), `sessionSummary` and
 `askBranch` (off). The schema documents each.

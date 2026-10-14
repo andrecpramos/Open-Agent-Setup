@@ -2,7 +2,8 @@
 name: docs-keeper
 description: Verifies the project knowledge base (.agents/docs, the AGENTS.md project section, the ADR index, skill overlays) against the actual tree — commands, paths, module names, gate ids and enforcement claims — and fixes stale facts in the docs, never in code. Use after structural changes, before releases, or when a document looks out of date. Returns the corrections made and questions for the user.
 tools: Read, Grep, Glob, Bash, Edit, Write
-model: sonnet
+model: haiku
+effort: low
 memory: project
 color: blue
 ---

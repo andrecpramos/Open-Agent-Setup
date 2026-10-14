@@ -20,8 +20,14 @@
 //  - Human prompts carry origin.kind "human". Peer messages, task notifications
 //    and meta lines (skill bodies, command output) are not prompts.
 //  - A failed command's tool_result has is_error: true ("Exit code N").
-//  - Subagents write their own transcripts: a window's facts cover the main
-//    thread, and each Task/Agent call counts as one subagent, by its type.
+//  - Subagents write their own transcripts, beside the session's:
+//    <session>.jsonl → <session>/subagents/agent-<agentId>.jsonl. A window's
+//    facts cover the main thread; each Task/Agent call counts as one subagent,
+//    by its type, and its agentId (from the result's toolUseResult) lands in
+//    subagentRuns, so _usage.mjs can read and price that run.
+//  - usage.cache_creation splits cache writes by lifetime: Claude Code writes
+//    the main thread's cache for an hour (2× input) and a subagent's for five
+//    minutes (1.25×). Both are kept, or the price math is off by the difference.
 
 import { promptFacts } from './_prompt.mjs';
 
@@ -37,6 +43,11 @@ const CHARS_PER_TOKEN = 4;
 const IMAGE_TOKENS = 1600;
 /** A tool result at least this large (estimated tokens) is reported as heavy. */
 export const HEAVY_TOKENS = 5000;
+/**
+ * A call whose prompt (input plus cache) is larger than this is also counted in its model's
+ * `long` bucket: some models bill long prompts at a second rate card (models.json `long`).
+ */
+export const LONG_PROMPT = 100000;
 
 // A command that checks the work. The first group is the phrase recorded, so a
 // row never carries the rest of a command line (which may hold a secret). A
@@ -148,6 +159,7 @@ export function emptySession(sessionId = '') {
     skillCalls: [],
     skillDocReads: [],
     agentCalls: [],
+    subagentRuns: [],
     briefs: 0,
     lastAssistantText: '',
     costUsd: null,
@@ -231,14 +243,17 @@ function onUsage(acc, fold, msg) {
   const usage = msg.usage;
   // "<synthetic>" marks a message Claude Code wrote itself (an interruption, an API error): no call was made.
   if (!isRecord(usage) || msg.model === '<synthetic>') return;
+  const split = isRecord(usage.cache_creation) ? usage.cache_creation : null;
   const now = {
     input: num(usage.input_tokens),
     output: num(usage.output_tokens),
     cacheRead: num(usage.cache_read_input_tokens),
     cacheCreate: num(usage.cache_creation_input_tokens),
+    // Part of cacheCreate, not added to it: the writes that live an hour and cost more.
+    cacheCreate1h: split ? num(split.ephemeral_1h_input_tokens) : 0,
   };
   const model = str(msg.model) ?? 'unknown';
-  const m = acc.models[model] ?? { input: 0, output: 0, cacheRead: 0, cacheCreate: 0, calls: 0, costUsd: null };
+  const m = acc.models[model] ?? emptyModel();
   const id = str(msg.id);
   const prev = id ? fold.usage.get(id) : undefined;
   // A repeated message id is the same API call split across lines: add only what grew.
@@ -253,11 +268,34 @@ function onUsage(acc, fold, msg) {
   acc.outputTokens += delta.output;
   acc.cacheRead += delta.cacheRead;
   acc.cacheCreate += delta.cacheCreate;
-  m.input += delta.input;
-  m.output += delta.output;
-  m.cacheRead += delta.cacheRead;
-  m.cacheCreate += delta.cacheCreate;
+  for (const k of TOKEN_KEYS) m[k] = num(m[k]) + delta[k];
+  if (now.input + now.cacheRead + now.cacheCreate > LONG_PROMPT) {
+    const long = m.long ?? { input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 };
+    for (const k of TOKEN_KEYS) long[k] += delta[k];
+    m.long = long;
+  }
   acc.models[model] = m;
+}
+
+const TOKEN_KEYS = ['input', 'output', 'cacheRead', 'cacheCreate', 'cacheCreate1h'];
+const emptyModel = () => ({ input: 0, output: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0, calls: 0, costUsd: null });
+
+/** A model's token counts as a row records them: snake_case, `long` only when some call was long. */
+function bucketOf(m) {
+  const b = { input: num(m.input), output: num(m.output), cache_read: num(m.cacheRead), cache_create: num(m.cacheCreate), cache_create_1h: num(m.cacheCreate1h), calls: num(m.calls) };
+  if (isRecord(m.long)) b.long = { input: num(m.long.input), output: num(m.long.output), cache_read: num(m.long.cacheRead), cache_create: num(m.long.cacheCreate), cache_create_1h: num(m.long.cacheCreate1h) };
+  return b;
+}
+
+/** Every model's token counts, as a row records them (see bucketOf). A model with no tokens and no calls is left out. */
+export function modelBuckets(models) {
+  const out = {};
+  for (const [name, m] of Object.entries(isRecord(models) ? models : {})) {
+    if (!isRecord(m)) continue;
+    const b = bucketOf(m);
+    if (b.calls || b.input || b.output || b.cache_read || b.cache_create) out[name] = b;
+  }
+  return out;
 }
 
 function onToolUse(acc, fold, b) {
@@ -282,13 +320,19 @@ function onToolUse(acc, fold, b) {
   }
 }
 
-function onToolResult(acc, fold, b) {
+function onToolResult(acc, fold, b, meta) {
   const id = str(b.tool_use_id);
   const p = id ? fold.pending.get(id) : undefined;
   if (!p) return;
   fold.pending.delete(id);
   const tool = acc.tools[p.index];
   tool.done = true;
+  // A subagent's run: its id names its own transcript, which holds what it cost.
+  const agentId = meta ? str(meta.agentId) : null;
+  if (SUBAGENT_TOOLS.has(tool.name) && agentId && !acc.subagentRuns.some((r) => r.id === agentId)) {
+    const type = str(meta.agentType) ?? (isRecord(p.input) ? str(p.input.subagent_type) : null) ?? 'general-purpose';
+    acc.subagentRuns.push({ id: agentId, type: type.split(':').pop() || 'general-purpose', model: str(meta.resolvedModel) });
+  }
   tool.error = b.is_error === true;
   // A call the permission system or a hook refused never ran: it is not a check that failed.
   if (tool.error && DENIED_RE.test(resultText(b.content))) tool.denied = true;
@@ -329,7 +373,7 @@ export function addTranscriptLines(acc, text) {
       if (isRecord(entry.modelUsage)) {
         for (const [model, u] of Object.entries(entry.modelUsage)) {
           if (!isRecord(u)) continue;
-          const m = acc.models[model] ?? { input: 0, output: 0, cacheRead: 0, cacheCreate: 0, calls: 0, costUsd: null };
+          const m = acc.models[model] ?? emptyModel();
           if (acc.inputTokens + acc.outputTokens === 0) {
             m.input += num(u.inputTokens);
             m.output += num(u.outputTokens);
@@ -358,7 +402,7 @@ export function addTranscriptLines(acc, text) {
         for (const b of content) {
           if (!isRecord(b)) continue;
           if (b.type === 'text' && typeof b.text === 'string' && b.text.trim()) texts.push(b.text);
-          if (b.type === 'tool_result') onToolResult(acc, fold, b);
+          if (b.type === 'tool_result') onToolResult(acc, fold, b, isRecord(entry.toolUseResult) ? entry.toolUseResult : null);
         }
       }
       const joined = texts.join('\n');
@@ -513,10 +557,7 @@ export function windowFacts(acc, { root = '', checks: extraChecks = [] } = {}) {
   heavy.top = heavy.top.sort((a, b) => b.carried - a.carried).slice(0, 3);
 
   const inputAll = acc.inputTokens + acc.cacheRead + acc.cacheCreate;
-  const models = {};
-  for (const [name, m] of Object.entries(acc.models)) {
-    models[name] = { input: m.input, output: m.output, cache_read: m.cacheRead ?? 0, cache_create: m.cacheCreate ?? 0, calls: m.calls };
-  }
+  const models = modelBuckets(acc.models);
   return {
     started: acc.started,
     ended: acc.ended,

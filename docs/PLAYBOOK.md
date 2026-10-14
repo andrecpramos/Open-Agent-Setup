@@ -61,7 +61,7 @@ by `--roles developer`.
 | Hook | When | What happens | Cost to the model |
 |---|---|---|---|
 | `branch-check` | session start | only when the branch needs attention (production, detached, behind the integration branch, a wrong config): the situation and the contract | a few lines, only then |
-| `prompt-intake` | each prompt | a large or risky task (auth, payments, data, production, secrets) → the agent writes a brief before its first edit | ~100 tokens, only then |
+| `prompt-intake` | each prompt | a large or risky task (auth, payments, data, production, secrets) → the agent writes a brief before its first edit; a docs task or a plan to build → it hands the work to the doc-writer or the implementer | ~100 tokens, only then |
 | `learning-signals` (admin) | each prompt | a correction or "from now on" prompts the agent to note the lesson in the inbox | a few lines, only then |
 | `context-budget` (admin) | each prompt | past 150k tokens (and each further 150k), asks the agent to delegate, read narrowly and hand off | ~90 tokens, once per band |
 | `guard-git` | before a shell command | denies production writes, force-pushes, hook bypasses; names the alternative | only when it denies |
@@ -94,6 +94,46 @@ a team that never sees `code-reviewer` is not getting reviews) and **briefs per 
 `kit/hooks/_transcript.mjs`); they are starting points. The trend against your own history is
 the signal. A single window proves nothing: compare 20 with 20, and read the windows behind a
 change before believing it.
+
+### What it cost, and what the model tiers saved
+
+Every step runs on a model tier — frontier, high, medium, low — and each agent on its own:
+the scout, the gate-runner and the doc-writer on low, the implementer on medium, the planner
+and the reviewers on high (`kit/models.json` names the model and effort per provider, and
+the price of each). The recorder keeps every window's tokens per model, and each subagent
+run's from its own transcript, so the money is measured, not guessed:
+
+```bash
+agent-setup usage <project>                        # or: node .agents/hooks/session-eval.mjs --usage
+agent-setup usage --all --last 50                  # every registered project
+agent-setup usage --session current                # the live session, its subagents included
+agent-setup usage <project> --vs high              # against everything on the high tier
+```
+
+It prints three blocks. **Cost by model and tier** — calls, tokens, cache, dollars and share;
+when it reads a single transcript, Claude Code's own figure sits beside it as a cross-check.
+**Routing** — each subagent run priced again on its window's main model: *delegated down*
+shows at most how much it saved, *escalated up* what it paid for a harder step, and the total
+against everything on the main model (or the `--vs` tier). Against the main model it is a
+ceiling: a subagent re-reads its instructions and files when it starts, and the main thread
+doing the step itself would not have. On real runs of small tasks the true saving was a
+fraction of the ceiling, because the main thread's own model dominates the bill — which is why
+the session model (WORKFLOW.md: `opusplan` or Sonnet) is the first lever, and handing steps
+down the second. **Quality** — the windows that routed work
+across tiers beside the ones that did not, on checked-after-edit, passed, corrections, unbacked
+claims and failed calls.
+
+| Reading | Means | Lever |
+|---|---|---|
+| most of the cost in the main thread on high or frontier, little delegated down | the expensive model reads, searches and types out plans | `/model opusplan` or a Sonnet main session (WORKFLOW.md); the deliver skill's routing table; check the scout and implementer are installed |
+| delegated down large, routed quality below one-tier quality | a cheap tier is doing judgement work | move that agent up a tier in `kit/catalog.json` (and its file), or brief it better (deliver's delegation reference) |
+| escalations frequent and expensive | steps fail on their tier and climb | read those windows: a plan too vague for the implementer, a task sized too small |
+| a model with "no price" | it is costed at $0 | add it to `kit/models.json`, or the project's `models.prices` |
+
+Repricing keeps the token counts, and another model would use its own on the same work, so
+every figure is an estimate. The true saving comes from comparing real windows before and after
+a change (`usage --last 20` on each side). Quality is the side that decides. Judge a tier change
+by 20 windows on each side, as with every metric here, and by `eval-outcomes` before it ships.
 
 ## 4 · The weekly cycle
 
@@ -214,3 +254,20 @@ Change one only with a reason, and put the reason in `.agents/docs/lessons.md`.
 the same numbers with `agent-setup evals`); `askBranch: true` makes the agent ask which branch
 to work on before its first edit instead of deciding and naming it. `retroEvery` is when
 `agent-setup report` lists a retro as due.
+
+The model tiers and prices come from the kit (`.agents/models.json`, replaced on update). A
+project changes them in the same file, section `models`, never in the copy:
+
+```json
+{ "models": {
+    "prices": { "claude-opus-5-5": { "input": 3.6, "output": 18 } },
+    "tiers": { "openai": { "low": { "model": "gpt-6-sol", "effort": "low" } } },
+    "reference": "high" } }
+```
+
+`prices` are the project's own rates (a negotiated discount, a cloud provider's price) or a
+model the kit does not list; `tiers` runs a tier on another model in the tools whose agent files
+the kit writes (Codex), on the next `update`; `reference` is what `usage` compares with by
+default. Claude Code's agents name an alias (`haiku`, `sonnet`, `opus`, `fable`): to point one at
+another model — a cloud provider's id, an older version — set `ANTHROPIC_DEFAULT_HAIKU_MODEL`
+(and its siblings) under `env` in `.claude/settings.json`.

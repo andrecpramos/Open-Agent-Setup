@@ -161,6 +161,27 @@ Add it to the right profiles in `kit/catalog.json`. `--group admin` scaffolds it
 `kit/admin/skills/`, with `disable-model-invocation: true`; every other group serves the
 developer role.
 
+## Agents and their model tier
+
+An agent (`kit/<role>/agents/<name>.md`) is a delegated step: it says what it is given, how it
+works, and the exact shape it returns. Every agent runs on a model tier — frontier, high, medium
+or low ([kit/models.json](../kit/models.json)) — chosen by what its mistakes cost, not by how
+hard the task sounds: a reviewer's miss ships a bug, so reviews run on high; a search that misses
+is caught by the caller, so the scout runs on low.
+
+- Record it in `kit/catalog.json`: `step`, `when` (the AGENTS.md team table), `tier`, and
+  `sandbox: "read-only"` when it never writes (Codex enforces it).
+- In its file, `model` and `effort` are the tier's Claude Code alias and effort; lint fails
+  when they differ, so a tier change is one catalog edit, one file edit, and the reason in the
+  changelog.
+- The cheaper the tier, the more its file must spell out: the input it needs, the steps, when
+  to stop and hand back, and the return shape. A lower tier follows instructions well and fills
+  gaps badly.
+- Add a case to the routing suite that should hand work to it (`agent:<name>` in a skill's
+  `evals/routing.json`, usually deliver's), and check it with `eval-routing`. Moving an agent
+  down a tier is a quality change: run `eval-outcomes` for the skills that delegate to it, and
+  read `agent-setup usage` on real sessions, before shipping it.
+
 ## Vendored skills — taking someone else's skill
 
 ```bash

@@ -364,8 +364,8 @@ describe('routing: heuristic guess vs transcript activation', () => {
   });
 
   test('model costs are estimated only for known families', () => {
-    assert.ok((estimateCost('claude-sonnet-5', 1_000_000, 0) ?? 0) > 0);
-    assert.equal(estimateCost('mystery-model-9', 100, 100), null);
+    assert.equal(estimateCost('claude-sonnet-5', { input: 1_000_000, output: 0 }), 2, 'the price table in kit/models.json');
+    assert.equal(estimateCost('mystery-model-9', { input: 100, output: 100 }), null);
   });
 });
 

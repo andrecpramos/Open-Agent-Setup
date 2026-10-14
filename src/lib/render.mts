@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { TEMPLATES, kitVersion } from './paths.mjs';
 import { readText, today } from './util.mjs';
 import { skillSummary } from './catalog.mjs';
+import { tierTable } from './models.mjs';
+import type { ModelTable } from '../kit/hooks/_usage.mjs';
 
 /** A skill reference as used when building template variables. */
 export interface RenderSkill {
@@ -37,7 +39,7 @@ export interface RenderDetection {
 /** The catalog shape that buildVars reads. */
 export interface RenderCatalog {
   skills?: Record<string, { summary?: string; group?: string; [key: string]: unknown }>;
-  agents?: Record<string, { summary?: string; step?: string; when?: string; [key: string]: unknown }>;
+  agents?: Record<string, { summary?: string; step?: string; when?: string; tier?: string; [key: string]: unknown }>;
   [key: string]: unknown;
 }
 
@@ -51,6 +53,8 @@ export interface BuildVarsOptions {
   hooks?: boolean;
   /** The installed roles; the admin role adds the learning loop and the admin skills' row. */
   roles?: string[];
+  /** The model tiers (kit/models.json with the project's overrides): the AGENTS.md tier table. */
+  models?: ModelTable;
 }
 
 /** Template variables produced by buildVars. A type alias (not an interface) so the result carries an implicit index signature for render(). */
@@ -69,6 +73,7 @@ export type BuiltVars = {
   CLAUDE_SECTION: string;
   KB_NOTE: string;
   LEARNING_LOOP: string;
+  MODEL_TIERS: string;
 };
 
 /** A provisional sdlc config written from detection. */
@@ -110,9 +115,9 @@ const WORKFLOW_ORDER = ['deliver', 'gates', 'ship-it', 'handoff'];
 const GUARD_NAMES: Record<string, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', copilot: 'GitHub Copilot', antigravity: 'Antigravity', windsurf: 'Windsurf' };
 const ADMIN_ORDER = ['sdlc-init', 'self-improve', 'enforcement-audit'];
 // The team table reads in the order of the delivery cycle.
-const STEP_ORDER = ['Explore', 'Review', 'Verify', 'Docs'];
+const STEP_ORDER = ['Explore', 'Plan', 'Build', 'Verify', 'Review', 'Docs'];
 
-export function buildVars({ detection, selection, catalog, agentSummaries, targets = ['claude'], hooks = true, roles = ['developer', 'admin'] }: BuildVarsOptions): BuiltVars {
+export function buildVars({ detection, selection, catalog, agentSummaries, targets = ['claude'], hooks = true, roles = ['developer', 'admin'], models }: BuildVarsOptions): BuiltVars {
   // Catalog order (front, back, middle, …) reads better than alphabetical.
   const order = Object.keys(catalog.skills ?? {});
   const skills = [...selection.skills].sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
@@ -149,15 +154,15 @@ export function buildVars({ detection, selection, catalog, agentSummaries, targe
   const agentsDir: string = targets.includes('claude') ? '.claude/agents' : '.agents/agents';
   const teamTable = team.length
     ? [
-        '| Step | Agent | Delegate when |',
-        '|---|---|---|',
-        ...team.map((a) => `| ${catalog.agents?.[a.name]?.step ?? '—'} | \`${a.name}\` | ${catalog.agents?.[a.name]?.when ?? agentSummaries[a.name] ?? `see ${agentsDir}/`} |`),
+        '| Step | Agent | Tier | Delegate when |',
+        '|---|---|---|---|',
+        ...team.map((a) => `| ${catalog.agents?.[a.name]?.step ?? '—'} | \`${a.name}\` | ${catalog.agents?.[a.name]?.tier ?? '—'} | ${catalog.agents?.[a.name]?.when ?? agentSummaries[a.name] ?? `see ${agentsDir}/`} |`),
         '',
         `Agents that cannot spawn subagents do the step themselves, following \`${agentsDir}/<name>.md\`.`,
       ].join('\n')
     : 'No subagents installed: do each step yourself.';
   const claudeAgents = team.length
-    ? '- **Subagents** (the "Who does what" table in AGENTS.md): run independent reviews in parallel, give each the brief and the diff, and check what comes back. Spawn them from the repository root: they start in the current directory and write their project memory under it.'
+    ? '- **Subagents** (the "Who does what" table in AGENTS.md): run independent reviews in parallel, give each the brief and the diff, and check what comes back. Spawn them from the repository root: they start in the current directory and write their project memory under it. Each runs on its own tier\'s model; to move one run up a tier, pass the Agent tool\'s `model` (`fable` for the frontier tier, `opus` when Fable is not available to you).'
     : '';
 
   const invocable = [...workflow, ...domain.map((s) => s.name)].map((n) => `\`/${n}\``);
@@ -207,7 +212,26 @@ export function buildVars({ detection, selection, catalog, agentSummaries, targe
       : '',
     KB_NOTE: kbNote,
     LEARNING_LOOP: learningLoop,
+    MODEL_TIERS: models && team.length ? modelTiers(models, targets) : '',
   };
+}
+
+/** The AGENTS.md "Model tiers" section: when to route a step to another tier, and the table. */
+function modelTiers(models: ModelTable, targets: string[]): string {
+  return [
+    '### Model tiers',
+    '',
+    'Each step runs on the cheapest tier that does it well; the agents above already run on theirs.',
+    'Size the work first: XS and S stay on your own model — a subagent starts cold and re-reads what',
+    'you already have. From M up, hand a step to the agent of its tier when that differs from yours:',
+    'plans and reviews up to high, building down to medium, searching, gate output and docs down to',
+    'low. Escalate on evidence — a step that failed twice moves up one tier, critical work is planned',
+    'on frontier — and never move a review of risky work down to save money.',
+    '',
+    tierTable(models, targets),
+    '',
+    '',
+  ].join('\n');
 }
 
 /** A provisional sdlc.config.json from what git and the manifests showed. */

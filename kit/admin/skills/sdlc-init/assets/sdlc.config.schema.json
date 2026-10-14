@@ -225,7 +225,7 @@
       "additionalProperties": false,
       "description": "The kit's workflow hooks. Change a default only with a reason.",
       "properties": {
-        "sessionSummary": { "type": "boolean", "default": false, "description": "session-eval shows the person one line of eval metrics at session start (a systemMessage: the model never sees it). Off by default: the numbers are the admin's, read with agent-setup evals and report." },
+        "sessionSummary": { "type": "boolean", "default": false, "description": "session-eval shows the person one line of eval metrics and one of cost at session start (a systemMessage: the model never sees it). Off by default: the numbers are the admin's, read with agent-setup evals, usage and report." },
         "verifyBeforeStop": { "type": "boolean", "default": true, "description": "stop-check blocks the end of a turn once when code changed after the last passing check." },
         "contextWarnTokens": { "type": "integer", "minimum": 0, "default": 150000, "description": "context-budget notes the agent when a window passes this many tokens, and again at each further multiple. 0 turns it off." },
         "promptIntake": { "type": "boolean", "default": true, "description": "prompt-intake asks the agent to restate a large or risky task prompt (auth, payments, data, production, secrets) as a brief (goal, scope, acceptance, assumptions, risks) before its first edit." },
@@ -233,6 +233,61 @@
         "retroEvery": { "type": "integer", "minimum": 0, "default": 20, "description": "agent-setup report lists a retro as due after this many recorded context windows without one. 0 turns it off." },
         "askBranch": { "type": "boolean", "default": false, "description": "branch-check tells the agent to ask the user which branch to work on before its first edit. Off by default: the agent decides (small work on the integration branch, larger work on a new feature branch) and names the branch in its brief." }
       }
+    },
+
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "This project's changes to the kit's model tiers and prices (.agents/models.json — never edit the copy). `agent-setup update` writes the tiers into the agent files of tools that read their own format (Codex); the usage report prices sessions with the prices. For Claude Code, point an alias at another model with the ANTHROPIC_DEFAULT_*_MODEL settings instead.",
+      "properties": {
+        "prices": {
+          "type": "object",
+          "description": "Per model id: this project's own rates (a negotiated discount, a cloud provider's price), or a model the kit does not list. USD per million tokens; the fields merge over the kit's card.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "input": { "type": "number", "minimum": 0 },
+              "output": { "type": "number", "minimum": 0 },
+              "cacheRead": { "type": "number", "minimum": 0 },
+              "cacheWrite": { "type": "number", "minimum": 0, "description": "The 5-minute cache write." },
+              "cacheWrite1h": { "type": "number", "minimum": 0, "description": "The 1-hour cache write." }
+            }
+          }
+        },
+        "tiers": {
+          "type": "object",
+          "description": "Per provider (anthropic, openai, google, or a new one) and tier: the model, or { model, effort }, to run that tier on instead of the kit's.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "frontier": { "$ref": "#/$defs/tierModel" },
+              "high": { "$ref": "#/$defs/tierModel" },
+              "medium": { "$ref": "#/$defs/tierModel" },
+              "low": { "$ref": "#/$defs/tierModel" }
+            }
+          }
+        },
+        "reference": { "type": "string", "default": "main", "description": "What the usage report compares the actual cost with: main (each window's main model), a tier (frontier, high, medium, low) or a model id." }
+      }
+    }
+  },
+
+  "$defs": {
+    "tierModel": {
+      "oneOf": [
+        { "type": "string", "description": "The model id." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "model": { "type": "string" },
+            "alias": { "type": "string", "description": "Claude Code's alias for it (fable, opus, sonnet, haiku)." },
+            "effort": { "type": "string", "description": "The reasoning effort the tier runs at." }
+          }
+        }
+      ]
     }
   }
 }

@@ -2,7 +2,8 @@
 name: gate-runner
 description: Runs this repository's gates (from .agents/sdlc.config.json) in an isolated context and returns a short MERGE-SAFE or BLOCKED verdict with the cause and fix hint for each failure. Use proactively before commits and pull requests, or whenever a full gate run would flood the main conversation. Never edits files.
 tools: Bash, Read, Grep, Glob
-model: sonnet
+model: haiku
+effort: low
 skills:
   - gates
 color: green

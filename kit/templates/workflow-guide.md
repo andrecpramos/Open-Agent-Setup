@@ -53,6 +53,28 @@ Don't touch <what is out of scope>.
 | the agent runs the tests before it finishes | it changed code after the last check | nothing: it reports the result |
 | a note about the **branch** at session start | you are on production, detached, or behind the integration branch | let the agent switch or update, or tell it where to work |
 
+## Which model, and what it costs
+
+Not every step needs the best model. The agent hands each step to a helper running on the
+cheapest model that does it well (`AGENTS.md`, "Model tiers"): searching the code, reading
+test output and writing the changelog on a small model; building from an agreed plan on a
+mid-size one; plans and reviews on the strongest; the very hardest work on the top model. You
+do not pick these: the helpers carry their own model.
+
+You pick the model of your own session, which most of the tokens go through:
+
+| For | In Claude Code |
+|---|---|
+| everyday work | `/model opusplan` — Opus while you plan (shift+tab to plan mode), Sonnet while it builds — or `/model sonnet` |
+| a hard design or a bug that resists | `/model opus` |
+| the hardest, longest work | `/model fable`, where your plan includes it |
+
+In Codex and other tools, choose the model the same way, in the tool's model picker.
+
+**What did it cost?** `node .agents/hooks/session-eval.mjs --usage` (where the setup records
+sessions) shows the cost per model, what handing steps to cheaper helpers saved, and whether
+checks and corrections held up — the same numbers the maintainer reads.
+
 ## Commands (Claude Code)
 
 | Command | For |
