@@ -5,7 +5,7 @@ comes back. That makes them right for **reading and judging** (exploring, planni
 running noisy checks) and for **building one step at a time** — never for writing in parallel
 with you or with each other. Each runs on its own model tier, so delegating also moves a step
 to the model that is worth its price for it. The project's AGENTS.md lists the agents installed
-here in its "Who does what" table, and the tiers in "Model tiers".
+here, with the tier each runs on and each tier's model, under "Who does what, on which model".
 
 ## The team
 
@@ -35,8 +35,9 @@ most expensive place to spend tokens: every call re-reads all of it. So:
 - **Stay** — XS and S work, and anything smaller than the cold start: a subagent re-reads what
   you already have, and a three-line fix delegated costs more than it saves.
 - **Escalate one run** when your tool lets you choose the model for a single subagent call:
-  name the next tier's model from AGENTS.md "Model tiers" (frontier for critical plans and
-  reviews). If it cannot, do the step yourself when you already run on that tier.
+  name the next tier's model from the tier table in AGENTS.md (frontier for critical plans and
+  reviews; high for a plan step marked `tier: high`). If it cannot, do the step yourself when
+  you already run on that tier.
 
 The usage report (`agent-setup usage`, or `node .agents/hooks/session-eval.mjs --usage` where the
 session recorder is installed) shows

@@ -92,10 +92,11 @@ describe('install into a fresh repository (standard profile, any agent)', () => 
         assert.match(a, /pnpm run typecheck/);
         assert.match(a, /<!-- agent-setup:begin -->[\s\S]*## How work flows here[\s\S]*## Working agreement[\s\S]*<!-- agent-setup:end -->/);
         assert.match(a, /\| Review \| `code-reviewer` \| high \| a change across several files or layers/);
-        assert.match(a, /### Model tiers[\s\S]*\| Tier \| Use it for \| Claude \| OpenAI \| Gemini \|/, "no tool named: every provider's column");
+        assert.match(a, /### Who does what, on which model[\s\S]*\| Tier \| Use it for \| Claude \| OpenAI \| Gemini \|/, "no tool named: every provider's column");
         assert.match(a, /\| high \| [^|]+ \| `claude-opus-5-5` · high \| `gpt-6\.1-sol` · high \| `gemini-3\.1-pro-preview` \|/, 'model ids, not Claude Code aliases, without the claude target');
         assert.match(a, /## Learning loop/, 'the admin role brings the learning loop');
-        assert.match(a, /\| `sdlc-init` · `self-improve` · `enforcement-audit` \| For whoever maintains the setup, run by name only/);
+        assert.match(a, /`frontend` · `backend` · `api-design` · `security` · `architecture` for the areas; `deliver` · `gates` · `ship-it` · `handoff` for the workflow; `sdlc-init` · `self-improve` · `enforcement-audit` for whoever maintains the setup, run by name only/);
+        assert.doesNotMatch(a, /## Skills/, 'the skills are named once, in the working agreement: their descriptions are the agent\'s already');
         assert.match(a, /\| Explore \| `scout` \|[\s\S]*\| Plan \| `planner` \|[\s\S]*\| Build \| `implementer` \|[\s\S]*\| Verify \| `gate-runner` \|[\s\S]*\| Review \| `security-reviewer` \|[\s\S]*\| Docs \| `doc-writer` \|/, 'the team table reads in the order of the cycle');
         assert.match(a, /\.agents\/skills/);
         assert.match(a, /\.agents\/agents/);
@@ -197,10 +198,10 @@ describe('install for Claude Code (a project with .claude/)', () => {
         assert.equal(existsSync(join(repo, 'CLAUDE.md')), false);
         const a = read(join(repo, 'AGENTS.md'));
         assert.match(a, /## Claude Code/);
-        assert.match(a, /prompt-intake/);
-        assert.match(a, /"Who does what" table in AGENTS\.md/);
+        assert.match(a, /When one\s+speaks, act on it[\s\S]*a check or a review asked for — run it; an INTAKE note —\s+write the brief; a\s+ROUTE note — hand the work to the agent it names/);
         // Subagents with project memory write it under the directory they start in.
-        assert.match(a, /Spawn them from the repository root/);
+        assert.match(a, /spawn them from the repository root/);
+        assert.match(a, /pass the Agent tool's `model`/, 'how to move one run up a tier');
         assert.match(a, /\.claude\/agents/);
         assert.match(a, /\/reload-skills/);
         assert.doesNotMatch(a, /\{\{[A-Z_]+\}\}/, 'unrendered placeholder');
@@ -242,8 +243,15 @@ describe('install for Claude Code (a project with .claude/)', () => {
 // ---------------------------------------------------------------------------
 describe('the design group', () => {
     const repo = nodeApp();
-    const r = runCli(['install', repo, '--profile', 'web', '--targets', 'agents,claude']);
-    test('the web profile installs both design skills, named in the report', () => {
+    const r = runCli(['install', repo, '--profile', 'web', '--skills', '@design', '--targets', 'agents,claude']);
+    test('opt-in: the web profile alone leaves the design skills out', () => {
+        const plain = nodeApp();
+        assert.equal(runCli(['install', plain, '--profile', 'web']).code, 0);
+        for (const s of DESIGN)
+            assert.equal(existsSync(join(plain, '.agents', 'skills', s)), false, `${s} costs ~22k tokens a load, or a CLI per machine: asked for, never assumed`);
+        assert.ok(existsSync(join(plain, '.agents', 'skills', 'design-system', 'SKILL.md')));
+    });
+    test('--skills @design installs both design skills, named in the report', () => {
         assert.equal(r.code, 0, r.out);
         for (const s of DESIGN)
             assert.ok(existsSync(join(repo, '.agents', 'skills', s, 'SKILL.md')), s);
@@ -261,10 +269,10 @@ describe('the design group', () => {
         for (const s of DESIGN)
             assert.equal(existsSync(join(repo, '.agents', 'skills', s, 'LICENSE')), false, `${s} carries no copy`);
     });
-    test('AGENTS.md gives each design skill its own row', () => {
+    test('AGENTS.md names each design skill', () => {
         const a = read(join(repo, 'AGENTS.md'));
         for (const s of DESIGN)
-            assert.match(a, new RegExp(`\\| \`${s}\` \\|`), s);
+            assert.match(a, new RegExp(`\`${s}\``), s);
     });
     test('--skills @design adds the group to any profile; --exclude removes one skill', () => {
         const other = nodeApp();
@@ -688,8 +696,9 @@ describe('selection options', () => {
         assert.equal(r.code, 0, r.out);
         assert.match(r.out, /Setup\s+web — full-stack web product/);
         assert.equal(manifest(repo).selection.profile, 'web');
-        for (const s of ['design-system', ...DESIGN])
-            assert.ok(existsSync(join(repo, '.agents', 'skills', s, 'SKILL.md')), s);
+        assert.ok(existsSync(join(repo, '.agents', 'skills', 'design-system', 'SKILL.md')));
+        for (const s of DESIGN)
+            assert.equal(existsSync(join(repo, '.agents', 'skills', s)), false, `${s} is opt-in`);
         assert.match(runCli(['update', repo]).out, /profile web/, 'an update keeps it');
         const given = nodeApp();
         writeFileSync(join(given, 'package.json'), JSON.stringify({ name: 'shop', dependencies: { react: '19.0.0', express: '5.0.0' } }));
@@ -1248,5 +1257,50 @@ describe('agent-setup usage', () => {
         const r = runCli(['usage', makeRepo(), '--session', 'current']);
         assert.equal(r.code, 1);
         assert.match(r.out, /no live session recorded/);
+    });
+});
+describe('--session-model: the model Claude Code sessions start on', () => {
+    const settings = (repo) => json(join(repo, '.claude', 'settings.json'));
+    test('set on install, kept on update, removed with none; never one the project chose', () => {
+        const repo = makeRepo();
+        const r = runCli(['install', repo, '--targets', 'claude', '--session-model', 'opusplan']);
+        assert.equal(r.code, 0, r.out);
+        assert.equal(settings(repo).model, 'opusplan');
+        assert.equal(manifest(repo).selection.sessionModel, 'opusplan');
+        assert.equal(runCli(['update', repo]).code, 0);
+        assert.equal(settings(repo).model, 'opusplan', 'an update keeps it');
+        runCli(['update', repo, '--session-model', 'none']);
+        assert.equal(settings(repo).model, undefined);
+        const own = makeRepo();
+        mkdirSync(join(own, '.claude'), { recursive: true });
+        writeFileSync(join(own, '.claude', 'settings.json'), JSON.stringify({ model: 'sonnet' }));
+        const o = runCli(['install', own, '--targets', 'claude', '--session-model', 'opusplan', '--verbose']);
+        assert.equal(settings(own).model, 'sonnet', "the project's own choice stays");
+        assert.match(o.out, /already choose "sonnet"/);
+        runCli(['uninstall', own]);
+        assert.equal(settings(own).model, 'sonnet', 'uninstall takes out only what the kit set');
+    });
+    test('deleted by hand, it stays deleted; changed by hand, the change stays', () => {
+        const repo = makeRepo();
+        runCli(['install', repo, '--targets', 'claude', '--session-model', 'sonnet']);
+        const file = join(repo, '.claude', 'settings.json');
+        const s = settings(repo);
+        delete s.model;
+        writeFileSync(file, JSON.stringify(s, null, 2));
+        runCli(['update', repo]);
+        assert.equal(settings(repo).model, undefined, 'a removed model is not put back');
+        runCli(['update', repo, '--session-model', 'opusplan']);
+        assert.equal(settings(repo).model, 'opusplan', 'naming one again sets it');
+        writeFileSync(file, JSON.stringify({ ...settings(repo), model: 'opus' }, null, 2));
+        runCli(['uninstall', repo]);
+        assert.equal(existsSync(file) ? settings(repo).model : 'opus', 'opus', 'a model changed by hand is not the kit\'s to remove');
+    });
+    test('an unknown model is refused; the install offers it when none is set', () => {
+        const repo = makeRepo();
+        const bad = runCli(['install', repo, '--targets', 'claude', '--session-model', 'gpt-5']);
+        assert.equal(bad.code, 1);
+        assert.match(bad.out, /--session-model must be a Claude Code model/);
+        const ok = runCli(['install', makeRepo(), '--targets', 'claude']);
+        assert.match(ok.out, /--session-model opusplan — sessions plan on Opus and build on Sonnet/);
     });
 });

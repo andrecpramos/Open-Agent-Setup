@@ -268,7 +268,7 @@ app gets more than a small library. `--profile` changes the choice.
 | `design-system` | your own UI tokens and components (web and frontend projects) |
 | `agent-eval` | testing features built on an LLM (AI products) |
 | `deliver` · `gates` · `ship-it` · `handoff` | the workflow: the full cycle, the checks, shipping, pausing — always installed |
-| `design-taste-frontend` · `agent-browser` | UI work: a design direction, and checking the result in a real browser (web and frontend projects, or `--skills @design`) |
+| `design-taste-frontend` · `agent-browser` | UI work, opt-in with `--skills @design`: a design direction (a long skill, about 22k tokens each time it loads), and checking the result in a real browser |
 
 `agent-browser` needs a one-time install on each computer:
 `npm i -g agent-browser && agent-browser install`.
@@ -317,7 +317,7 @@ They stay silent until something needs doing.
 |---|---|
 | `guard-git` | blocks writes to production, force-pushes to shared branches, commands that throw away uncommitted work, and skipping git's own checks, and names the safer alternative each time. Pull requests are the normal path and pass |
 | `check-gates` | right after an edit, runs the quick check that edit could have broken |
-| `stop-check` | when the agent is about to finish with code changed since the last passing check, asks once for the check |
+| `stop-check` | when the agent is about to finish with code changed since the last passing check, asks once for the check — and for risky work (login, payments, data, secrets, production) that no reviewer has looked at, for the review too |
 | `prompt-intake` | for a big or risky request, asks for the brief before the first edit; for a docs task or a plan to build, names the cheaper helper to hand it to; everything else passes silently |
 | `branch-check` | at the start of a session, speaks up only when the branch needs attention |
 
@@ -345,6 +345,7 @@ admin role out.
 | `--skills @design,agent-eval` · `--exclude <skill>` | add or leave out skills or whole groups |
 | `--roles developer` | the developer role only: no learning loop, no session recorder |
 | `--setup measure` | record a baseline before turning the kit on ([below](#measure-before-you-switch-it-on)) |
+| `--session-model opusplan` | the model every Claude Code session starts on, for the whole team: `opusplan` plans on Opus and builds on Sonnet — the largest saving measured, with the helpers on their own models. Never replaces a model the project's settings already choose; `none` takes it out again |
 | `--no-hooks` · `--verbose` | no Claude Code hooks · list every file |
 
 `node Open-Agent-Setup/bin/agent-setup.mjs help` lists every command and option. To try the kit

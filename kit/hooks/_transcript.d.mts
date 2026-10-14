@@ -35,6 +35,8 @@ export interface ToolEntry {
   name: string;
   /** The command, file, URL or pattern (full text; never written to a row). */
   summary: string;
+  /** A Task/Agent call's subagent type, without a plugin prefix; null for every other tool. */
+  agent: string | null;
   error: boolean;
   /** The tool_result has arrived. */
   done: boolean;

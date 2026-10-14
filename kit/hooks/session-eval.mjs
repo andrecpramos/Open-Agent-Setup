@@ -21,13 +21,13 @@
 // whether a check ran after the last edit and passed; and whether the final
 // message claims a verification the transcript does not show. Judging a row
 // against the project's own history is the reader's job (`agent-setup
-// eval-board`), so no threshold lives in this hook.
+// evals`), so no threshold lives in this hook.
 //
 // Rows go to .agents/learnings/eval-windows.jsonl (local, gitignored, capped),
 // keyed by session and window, so a second run for the same window replaces its
 // row. No prompt or command text is stored: file paths, counts, tool names, and
 // the name of each check command. The transcript is folded by _transcript.mjs,
-// the same parser `agent-setup eval-board` uses.
+// the same parser `agent-setup usage` uses.
 //
 // Design rules, as for every hook in this kit: silent (it never adds to the
 // agent's context); never throws; always exits 0; writes only inside

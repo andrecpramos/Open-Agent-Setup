@@ -13,6 +13,29 @@ reported); a selection that named one drops it, with a note; the git hooks an ea
 added leave each clone at its next Claude Code session start, or with
 `node .agents/hooks/setup-clone.mjs`.
 
+- **`--session-model`: the team's starting model in one flag.** `install`/`update --session-model
+  opusplan` sets the model every Claude Code session starts on (`.claude/settings.json`):
+  Opus while planning, Sonnet while building, with the helpers on their own tiers — the
+  session's own model was the largest share of the bill in every measured run. Never replaces a
+  model the project's settings already choose, is removed only while it is still the kit's, and
+  stays removed once someone deletes it; `--session-model none` takes it out. The install's
+  next steps offer it when none is set.
+- **Risky work is reviewed before it is called done.** `stop-check` now also asks, in its one
+  block per edit, for the security-reviewer (or the code-reviewer) when a risky task prompt —
+  the intake's test: auth, payments, data, personal data, secrets, production — changed code
+  and no reviewer agent ran after the first edit. Measured on a real run: a Sonnet session read
+  the intake's request for a review and finished without one; with the stop it ran the review
+  on Opus, which led to two fixes. Fixing a review's findings never asks for a second review.
+- **A leaner AGENTS.md for every agent.** The managed block is about a quarter shorter (≈2.0k
+  tokens instead of ≈2.6k on a typical web install), read on every prompt: the skills table is
+  gone — a tool that loads skills already sees their descriptions, and the names stay in the
+  working agreement — the tier table sits under the team table with one line of routing rule,
+  and the Claude Code section says what to do when a hook speaks instead of describing each one.
+- **The design skills are opt-in.** The `web` and `frontend` profiles no longer include
+  `@design`: `design-taste-frontend` is about 22k tokens each time it loads, and
+  `agent-browser` does nothing until a CLI is installed on each machine. `--skills @design` adds
+  them. A project on those profiles loses them on update while unmodified; keep them with
+  `agent-setup update <project> --skills @design`.
 - **Model tiers: every step on the model that is worth its price.** Four tiers — frontier,
   high, medium, low — each a model and reasoning effort per provider (Claude: Fable, Opus,
   Sonnet, Haiku; OpenAI: GPT-6 Astra, GPT-6.1 Sol at high and medium effort, GPT-6 Luna;
@@ -51,8 +74,12 @@ added leave each clone at its next Claude Code session start, or with
   `agents_usage`: each subagent type's runs and tokens per model.
 - **A project's own models and prices.** `sdlc.config.json` takes a `models` section: its own
   rates (`prices`), another model for a tier (`tiers`, written into the Codex agents on
-  update), and the `reference` the usage report compares with. The eval board prices with the
-  same table; its old built-in rates are gone.
+  update), and the `reference` the usage report compares with.
+- **`agent-setup eval-board` removed.** A 1,400-line local UI that nothing documented and nothing
+  else read — its history and promoted cases fed no other command. What it measured is in
+  `usage` (cost, routing and quality, `--session current` for the live session), `evals`
+  (session metrics) and `report`. The prompt rubric and the transcript parser it shared stay,
+  with their tests; `improvePrompt`, which only it used, is gone from the hooks.
 
 - **Two roles: developer and admin.** `kit/developer/` holds what developers' agents use day to
   day — the domain skills, the delivery workflow, the review team, the guard hooks. `kit/admin/`

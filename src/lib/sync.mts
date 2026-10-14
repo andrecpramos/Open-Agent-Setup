@@ -73,6 +73,8 @@ export interface SyncOptions {
   hooks?: boolean;
   /** Roles to install besides developer, which is always installed: admin. */
   roles?: string[];
+  /** The model Claude Code sessions start on (`opusplan`, `sonnet`…); `none` leaves it to each person. */
+  sessionModel?: string;
   /** Retired: the git-hooks layer was server-side branch protection rebuilt per clone. */
   gitHooks?: boolean;
   dryRun?: boolean;
@@ -102,6 +104,8 @@ export interface SelectionOpts {
   targets: string[];
   hooks: boolean;
   roles: Role[];
+  /** The model Claude Code sessions start on (settings.json `model`), or null to leave it to each person. */
+  sessionModel?: string | null;
 }
 
 /** A previous (or new) selection as recorded in a manifest, with legacy packs. */
@@ -114,6 +118,7 @@ export interface ManifestSelection {
   targets?: string[];
   hooks?: boolean;
   roles?: string[];
+  sessionModel?: string | null;
   /** Written by installs before 3.0; the layer is gone and setup-clone removes its hooks. */
   gitHooks?: boolean;
 }
@@ -228,6 +233,8 @@ const SKILL_EXCLUDE = (rel: string): boolean => rel.startsWith('evals/') || rel.
 const MEASURE_HOOKS: Set<string> = new Set(['_config.mjs', '_transcript.mjs', '_prompt.mjs', '_usage.mjs', 'session-eval.mjs', 'setup-clone.mjs']);
 // The model tiers and prices, where the hooks and the agents read them.
 const MODELS_REL: string = `${HOME}/models.json`;
+/** What --session-model accepts: Claude Code's aliases and model ids, with an optional context tag. */
+const SESSION_MODEL: RegExp = /^(opusplan|sonnet|opus|haiku|fable|best|claude-[a-z0-9-]+)(\[1m\])?$/;
 /** Codex reads its custom agents from .codex/agents/<name>.toml. */
 const codexAgentRel = (name: string): string => `.codex/agents/${name}.toml`;
 
@@ -418,7 +425,11 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
     hooks: opts.hooks ?? was.hooks ?? true,
     // Developer is always installed; an install that never chose kept both roles.
     roles: parseRoles(['developer', ...(opts.roles?.length ? opts.roles : (was.roles ?? ['admin']))]),
+    sessionModel: opts.sessionModel === 'none' ? null : (opts.sessionModel ?? was.sessionModel ?? null),
   };
+  if (selOpts.sessionModel && !SESSION_MODEL.test(selOpts.sessionModel)) {
+    throw new CliError(`--session-model must be a Claude Code model: opusplan, sonnet, opus, haiku, fable, best, a claude-* id, or none — not "${selOpts.sessionModel}"`);
+  }
   const L0: string[] = [];
   for (const t of selOpts.targets) if (!TARGETS.includes(t)) throw new CliError(`unknown target "${t}" (use ${TARGETS.join(', ')})`);
   if (!selOpts.targets.includes('agents')) selOpts.targets.unshift('agents'); // .agents/ holds the one real copy
@@ -608,7 +619,11 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
   const removedByUser: Set<string> = new Set(opts.resetHooks ? [] : (prev?.settings?.removedByUser ?? []).map(rehome));
   if (!opts.resetHooks) {
     for (const h of prevAdded.hooks ?? []) if (!presentSigs.has(eventKey(h.event, h.signature))) removedByUser.add(rehome(eventKey(h.event, h.signature)));
+    // The session model too: deleted by hand, it stays deleted — until someone names one again.
+    if (prevAdded.model && (current as Record<string, unknown>).model === undefined) removedByUser.add('model');
   }
+  if (opts.sessionModel) removedByUser.delete('model');
+  if (claude && mode === 'full' && selOpts.sessionModel && !removedByUser.has('model')) fragment.model = selOpts.sessionModel;
   const base: ProjectSettings = unmergeSettings(current, prevAdded) as ProjectSettings;
   for (const [event, groups] of Object.entries(fragment.hooks ?? {})) {
     for (const g of groups) g.hooks = (g.hooks ?? []).filter((h) => !removedByUser.has(eventKey(event, signature(h))));
@@ -830,7 +845,7 @@ function report({ target, opts, prev, detection, selection, skipped, plan, selOp
   say(`  ${c.dim('Detected')}   ${detection.stack.join(', ') || 'no manifests'} · ${git}${detection.ci.length ? ` · CI: ${detection.ci.join(', ')}` : ' · no CI found'}`);
   const suggestion: string = suggestProfile(detection);
   say(
-    `  ${c.dim('Selection')}  ${selOpts.mode === 'measure' ? `${c.bold('measure-only baseline')} · ` : ''}roles: ${selOpts.roles.join(', ')} · profile ${c.bold(selOpts.profile)}${suggestion !== selOpts.profile ? c.dim(` (detected fit: ${suggestion})`) : ''} · targets: ${selOpts.targets.join(', ')} · hooks: ${selOpts.hooks ? 'on' : 'off'}`,
+    `  ${c.dim('Selection')}  ${selOpts.mode === 'measure' ? `${c.bold('measure-only baseline')} · ` : ''}roles: ${selOpts.roles.join(', ')} · profile ${c.bold(selOpts.profile)}${suggestion !== selOpts.profile ? c.dim(` (detected fit: ${suggestion})`) : ''} · targets: ${selOpts.targets.join(', ')} · hooks: ${selOpts.hooks ? 'on' : 'off'}${selOpts.sessionModel ? ` · session model: ${selOpts.sessionModel}` : ''}`,
     '',
   );
 
@@ -948,7 +963,7 @@ function installReport({ target, opts, detection, selection, skipped, plan, selO
     if (admin) sub('learnings/', 'where the agent notes lessons, for whoever maintains the setup');
     sub('overlays/', "this project's own rules for a skill (empty for now)");
     if (claude) {
-      if (hooks.length) row('.claude/settings.json', 'turns the hooks on in Claude Code (merged with what is there)');
+      if (hooks.length) row('.claude/settings.json', `turns the hooks on in Claude Code (merged with what is there)${selOpts.sessionModel ? `, and starts sessions on ${selOpts.sessionModel}` : ''}`);
       if (agents.length) row('.claude/agents/', `${agents.length} helper agents — ${list(agents, 6)}`);
     }
     for (const a of hookAgents) {
@@ -982,6 +997,10 @@ function installReport({ target, opts, detection, selection, skipped, plan, selO
       : `Open the project in ${named.length === 1 ? named[0] : 'your coding agent'}: it reads AGENTS.md and .agents/skills/ by itself.`,
   );
   for (const a of hookAgents) if (AGENT_HOOKS[a].trust) steps.push(AGENT_HOOKS[a].trust as string);
+  // The session's own model is the largest share of the bill: worth one decision for the team.
+  if (claude && !selOpts.sessionModel && selOpts.mode === 'full') {
+    steps.push(`Optional, for the whole team: ${kitCmd} update "${where}" --session-model opusplan — sessions plan on Opus and build on Sonnet, while the helpers keep their own models.`);
+  }
   if (admin) {
     steps.push(
       claude

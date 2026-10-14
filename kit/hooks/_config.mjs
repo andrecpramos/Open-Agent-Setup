@@ -140,6 +140,17 @@ export function loadConfig() {
   return cfg;
 }
 
+/** An agent this project has, in the folder of any tool the kit set up (Claude Code, Codex, the home). */
+export const hasAgent = (root, name) =>
+  existsSync(join(root, '.claude', 'agents', `${name}.md`)) || existsSync(join(root, '.agents', 'agents', `${name}.md`)) || existsSync(join(root, '.codex', 'agents', `${name}.toml`));
+
+/** The reviewer to name for risky work: the security reviewer where it applies, else the code reviewer, else null. */
+export function reviewerFor(root, risks) {
+  if (risks.some((r) => r !== 'production') && hasAgent(root, 'security-reviewer')) return 'security-reviewer';
+  if (hasAgent(root, 'code-reviewer')) return 'code-reviewer';
+  return null;
+}
+
 /**
  * The learnings folder: .agents/learnings, or .claude/learnings in an install from before 2.0
  * that `update` has not migrated yet. Hooks stay inert where neither exists.

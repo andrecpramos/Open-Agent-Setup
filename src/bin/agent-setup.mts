@@ -3,7 +3,6 @@
 // Zero dependencies; Node 18+. Run `agent-setup help` for usage.
 
 import { join, resolve } from 'node:path';
-import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { CliError, c, listFlag, parseArgs, say, toPosix } from '../lib/util.mjs';
 import { kitVersion, KIT_ROOT } from '../lib/paths.mjs';
@@ -15,7 +14,6 @@ import { evalOutcomes } from '../lib/outcomes.mjs';
 import { evals } from '../lib/evals.mjs';
 import { report } from '../lib/report.mjs';
 import { usage } from '../lib/usage.mjs';
-import { startEvalBoard, evalBoardJson } from '../lib/eval-board.mjs';
 import { exportSkills } from '../lib/export.mjs';
 import { lint } from '../lib/lint.mjs';
 import { listProjects } from '../lib/state.mjs';
@@ -50,6 +48,10 @@ ${c.bold('Project commands')}
                         and .claude/skills links; codex, cursor, copilot, antigravity, windsurf: the
                         same hooks in that agent's own hook file; gemini: GEMINI.md. Default: the
                         agents the project already shows (.claude/, .cursor/, .codex/, …)
+      --session-model m the model Claude Code sessions start on, for the whole team (settings.json):
+                        opusplan (Opus while planning, Sonnet while building), sonnet, opus…;
+                        none leaves it to each person (the default). Never replaces a model the
+                        project's settings already choose
       --no-hooks        skip the Claude Code hooks and their settings
       --no-sdlc-config  don't write a provisional .agents/sdlc.config.json
       --setup measure   a baseline first: only the session recorder, nothing the agent sees, so the
@@ -113,17 +115,6 @@ ${c.bold('Kit commands')}  (run in the kit)
       --project <dir>   one project's windows only   --last n   --json
       --check           exit 1 when a scorecard regressed against its baseline (the CI gate)
       --promote         accept the latest scorecards as the new baselines (commit with the change)
-  eval-board          Local eval UI: score a prompt, a run (tokens/cost/turns) and its output
-      --port <n>        localhost port (default: a free ephemeral port)   --no-open to skip the browser
-      --project <dir>   live project context: installed skills plus the live session feed
-                        (tokens, cost, model, tool calls and skill activations from the transcript)
-      --session <id>    follow one session instead of the current pointer   --expect-file f
-                        live polls record .agents/learnings/eval-history.jsonl; the board
-                        promotes missed expectations and tool-loops to permanent cases
-      --json            evaluate without the UI: --prompt s --output s --expect a,b --run '{...}'
-                        (--prompt-file/--output-file/--run-file read the same from files;
-                        with --project, prints the live snapshot instead)
-
 Docs: ${resolve(KIT_ROOT, 'README.md')}
 `;
 
@@ -143,22 +134,6 @@ const number = (v: unknown, fallback: number): number => {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
 
-/** Best-effort browser open. The board works without it; failures stay silent. */
-function openBrowser(url: string): void {
-  try {
-    const [file, args] =
-      process.platform === 'win32'
-        ? ['cmd.exe', ['/d', '/s', '/c', 'start', '', url]]
-        : process.platform === 'darwin'
-          ? ['open', [url]]
-          : ['xdg-open', [url]];
-    const child = spawn(file, args, { stdio: 'ignore', detached: true });
-    child.unref();
-  } catch {
-    // fail open: the URL is already printed
-  }
-}
-
 async function main(argv: string[]): Promise<number> {
   const [cmd, ...rest] = argv;
   const { flags, positionals } = parseArgs(rest, { booleans: ['dry-run', 'all', 'force', 'reset-hooks', 'json', 'quiet', 'git-hooks', 'locked', 'offline', 'save', 'check', 'promote', 'measure-only', 'harvest', 'verbose', 'yes'] });
@@ -173,6 +148,7 @@ async function main(argv: string[]): Promise<number> {
     hooks: flags.hooks === false ? false : flags.hooks === true ? true : undefined,
     gitHooks: flags['git-hooks'] === true ? true : undefined,
     roles: listFlag(flags.roles),
+    sessionModel: typeof flags['session-model'] === 'string' ? flags['session-model'] : undefined,
     sdlcConfig: flags['sdlc-config'] === false ? false : undefined,
     setup: typeof flags.setup === 'string' ? flags.setup : flags['measure-only'] ? 'measure' : undefined,
     resetHooks: Boolean(flags['reset-hooks']),
@@ -326,31 +302,8 @@ async function main(argv: string[]): Promise<number> {
         scorecards: typeof flags.scorecards === 'string' ? flags.scorecards : null,
       });
 
-    case 'eval-board': {
-      if (flags.json) {
-        let report: unknown;
-        try {
-          report = evalBoardJson(flags);
-        } catch (err) {
-          throw new CliError((err as Error).message);
-        }
-        process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-        return 0;
-      }
-      const port: number = flags.port === undefined ? 0 : number(flags.port, 0);
-      const project: string | null = typeof flags.project === 'string' && flags.project ? flags.project : null;
-      const { url } = await startEvalBoard({ port, project });
-      say('', `${c.bold('agent-setup eval-board')}  ${c.dim(url)}${project ? c.dim(`  (project ${project})`) : ''}`);
-      say(
-        project
-          ? '  Live feed: the current session is scored from its transcript — prompts, tokens, cost, model, tools and skill activations.'
-          : '  Paste the prompt, the run numbers and the output — the board scores each and suggests the next fix.',
-      );
-      say(`  ${c.dim('Ctrl+C to stop')}`, '');
-      if (flags.open !== false && flags.quiet !== true) openBrowser(url);
-      await new Promise(() => {});
-      return 0;
-    }
+    case 'eval-board':
+      throw new CliError('eval-board is gone: `agent-setup usage` (cost, routing, quality), `evals` (session metrics) and `report` cover what it measured.');
 
     case 'upstream':
       throw new CliError('`upstream` is now `vendor status`.');

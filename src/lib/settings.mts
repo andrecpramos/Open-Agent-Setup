@@ -6,6 +6,8 @@
 //     equivalent handler (same .claude/hooks/<script>) already covers — so a
 //     project whose own guard already runs on `Bash` gains `PowerShell`
 //     coverage instead of a second, duplicate guard;
+//   · a session `model` (install --session-model) is set only when the project's settings
+//     choose none, and removed again only while it is still the one the kit set;
 //   · everything added is recorded, so update and uninstall remove exactly that;
 //   · .claude/settings.local.json is never read or written.
 
@@ -36,6 +38,8 @@ export interface SettingsPermissions {
 export interface SettingsFragment {
   permissions?: SettingsPermissions;
   hooks?: Record<string, HookGroup[]>;
+  /** The session model the team starts on (`opusplan`, `sonnet`, …), when the install chose one. */
+  model?: string;
   [key: string]: unknown;
 }
 
@@ -59,6 +63,8 @@ export interface AddedPermissions {
 export interface AddedRecord {
   hooks: AddedHook[];
   permissions: AddedPermissions;
+  /** The session model the merge set, when it set one. */
+  model?: string;
 }
 
 /** The result of merging a fragment into existing settings. */
@@ -125,6 +131,15 @@ export function mergeSettings(existing: unknown, fragment: SettingsFragment): Me
     }
   }
 
+  if (typeof fragment.model === 'string' && fragment.model) {
+    if (out.model === undefined) {
+      out.model = fragment.model;
+      added.model = fragment.model;
+    } else if (out.model !== fragment.model) {
+      notes.push(`model: the project's settings already choose "${String(out.model)}" — kept; the session model "${fragment.model}" was not set`);
+    }
+  }
+
   for (const [event, groups] of Object.entries(fragment.hooks ?? {})) {
     for (const group of groups) {
       for (const handler of group.hooks ?? []) {
@@ -183,6 +198,8 @@ export function unmergeSettings(existing: unknown, added: AddedRecord | null | u
     if (!out.permissions[kind].length) delete out.permissions[kind];
   }
   if (out.permissions && !Object.keys(out.permissions).length) delete out.permissions;
+  // Only while it is still the kit's: a model someone chose since stays.
+  if (added?.model && out.model === added.model) delete out.model;
   return out;
 }
 

@@ -57,14 +57,15 @@ Weak-to-strong examples and the sizing table: [references/brief.md](references/b
 
 ## Who does each step, on which model
 
-Each step runs on the cheapest model tier that does it well — AGENTS.md "Model tiers" names
-the tiers and the agents that run on them. The size decides how much to hand off:
+Each step runs on the cheapest model tier that does it well — AGENTS.md, "Who does what, on
+which model", names the agents, their tiers and each tier's model. The size decides how much to
+hand off:
 
 | Step | XS · S | M | L or risky |
 |---|---|---|---|
 | Explore | yourself | scout (low) | scout (low) |
 | Plan | yourself, in a line or two | planner (high) | planner on the frontier tier; show the plan, wait for a yes |
-| Build | yourself | implementer (medium), step by step — or yourself if you run on medium | implementer step by step; a step the plan marks high, on high |
+| Build | yourself | implementer (medium), step by step — or yourself if you run on medium | implementer step by step; a step the plan marks high: yourself if you run on high, else the implementer moved up a tier |
 | Verify | the check | gate-runner (low) | gate-runner (low) |
 | Review | — | code-reviewer (high) | every reviewer that applies (high); security on frontier where money, auth or data loss is at stake |
 | Docs | yourself | doc-writer (low) | doc-writer (low) |

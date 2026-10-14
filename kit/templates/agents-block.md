@@ -9,7 +9,7 @@ follow the `deliver` skill (`.agents/skills/deliver/SKILL.md`) — a five-line b
 small verified steps, a review, a report against the acceptance line. Commit or open a PR only
 when asked.
 
-### Who does what
+### Who does what, on which model
 
 {{TEAM_TABLE}}
 
@@ -33,10 +33,6 @@ when asked.
 6. **Work economically.** Search first, then read the lines you need; keep command output short,
    but never pipe a check into `head` or `tail` — that hides its exit status. Delegate broad
    reading and full reviews to the agents above where your tool has them.
-
-## Skills
-
-{{SKILLS_TABLE}}
 
 ## Knowledge base
 
