@@ -1,12 +1,12 @@
-// Prompt reading, shared by the prompt-intake hook, the session-eval rows and
-// `agent-setup eval-board`: what kind of message a prompt is, how well a task
+// Prompt reading, shared by the prompt-intake hook and the session-eval rows (and through
+// them `agent-setup evals`): what kind of message a prompt is, how well a task
 // prompt says what it wants, and whether the agent should restate it as a brief
 // before it starts.
 //
 // Why: the cheapest place to fix a vague request is before any work starts. A
 // prompt that never says how "done" is checked gets an agent that decides for
-// itself, and the user finds out at the end. The rubric is the same one the
-// eval-board shows people: goal, context, constraints, acceptance, scope.
+// itself, and the user finds out at the end. The rubric: goal, context, constraints,
+// acceptance, scope.
 //
 // Pure and dependency-free: node builtins only, nothing runs at import, never
 // throws. English and Portuguese, like the correction detector in _transcript.mjs.
@@ -102,20 +102,6 @@ export function scorePrompt(prompt) {
   if (vague > 0) suggestions.push(`Replace ${vague} vague word(s) ("something", "stuff", "etc.") with exact names or numbers.`);
   const grade = score >= 85 ? 'A — ready to run' : score >= 70 ? 'B — solid, one gap' : score >= 50 ? 'C — runnable but guessy' : score >= 30 ? 'D — likely to drift' : 'F — rewrite first';
   return { score, grade, words: words.length, vagueWords: vague, checks: checks.map(({ id, label, pass }) => ({ id, label, pass })), suggestions };
-}
-
-/** The original prompt plus a scaffold for only the parts it is missing. */
-export function improvePrompt(prompt, result) {
-  const text = userText(prompt);
-  const r = result ?? scorePrompt(text);
-  const failed = new Set(r.checks.filter((k) => !k.pass).map((k) => k.id));
-  const lines = [`Goal: ${text || '[describe the task]'}`];
-  if (failed.has('context')) lines.push('Context: [files/stack — e.g. `lib/sync.mjs`, Node 18]');
-  if (failed.has('constraints')) lines.push('Constraints: [must … / must never …]');
-  if (failed.has('acceptance')) lines.push('Acceptance: [how to verify — command, test, observable behaviour]');
-  if (failed.has('scope')) lines.push('Out of scope: [what not to touch]');
-  if (!failed.size) lines.push('Constraints: [already covered — keep them]');
-  return lines.join('\n');
 }
 
 /** The risky areas a prompt touches, by name ("auth", "payments", …). */

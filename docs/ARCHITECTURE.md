@@ -101,7 +101,7 @@ have no overlay line (they are never edited); the `frontend` overlay says how th
 │   ├── licenses/<source>.txt  the kit's notice, and the licence of each upstream source a selected skill comes from
 │   ├── agents/*.md            the agents as procedures (without the claude target)
 │   ├── hooks/*.mjs            setup-clone.mjs (always); with the claude target, the runtime hooks of the installed roles
-│   ├── learnings/             admin role: inbox.md, README.md, (archive/, outbox/, signals.jsonl, live-session.json, eval-windows.jsonl, eval-history.jsonl, eval-cases.jsonl later)
+│   ├── learnings/             admin role: inbox.md, README.md, (archive/, outbox/, signals.jsonl, live-session.json, eval-windows.jsonl later)
 │   └── overlays/README.md     how to adapt a skill without forking it
 └── .claude/                   only with the claude target
     ├── settings.json          hooks (exec form, run from .agents/hooks/) and permissions, merged
@@ -159,7 +159,9 @@ state for its selection:
    - new → written, unless a different file is already there (then `.kit-new`);
    - no longer desired → removed if unmodified, otherwise kept and reported.
 4. **Merge settings** — remove what the previous run added, re-merge the current fragment,
-   skip handlers the user deleted on purpose (per event).
+   skip handlers the user deleted on purpose (per event). With `--session-model`, the `model`
+   every session starts on is set too — only where the project's settings choose none, removed
+   only while it is still the kit's, and not put back once someone deleted it.
 5. **Write managed blocks** and create project-owned files that are missing.
 6. **Write the manifest, register the project** in `~/.agent-setup/projects.json` (per user,
    so moving or re-cloning the kit orphans nothing; a registry an older checkout kept in its
@@ -207,7 +209,7 @@ rather than write an incomplete one.
 | Instructions | `AGENTS.md`, read natively (a project's own `CLAUDE.md` imports it) | `AGENTS.md` (Gemini: `GEMINI.md` → `@./AGENTS.md`) |
 | Skills | `.claude/skills/` links to `.agents/skills/` (auto-selected by description) | `.agents/skills/` (Agent Skills readers); any agent can open a `SKILL.md` as AGENTS.md instructs |
 | Subagents | `.claude/agents/`, each on its tier's model alias and effort | Codex: `.codex/agents/<name>.toml`, the same agents on the OpenAI model of their tier. Others: `.agents/agents/` as procedures to follow inline (each reviewer's checklist also lives in its skill) |
-| Model tiers | the agents' `model`/`effort`; the AGENTS.md "Model tiers" table for its own routing | the AGENTS.md table, with the column of each targeted provider (all of them for tools that run any provider's models) |
+| Model tiers | the agents' `model`/`effort`; the AGENTS.md tier table for its own routing | the AGENTS.md table, with the column of each targeted provider (all of them for tools that run any provider's models) |
 | Guards | Claude Code hooks (Bash and PowerShell tools) + branch protection on the host | the same hooks through `run-hook.mjs` in Codex, Cursor, Copilot, Antigravity and Windsurf (below); branch protection on the host; AGENTS.md instructions |
 | Admin skills | invoked by name only (`disable-model-invocation`): no context cost | ordinary skills (the key is ignored) |
 | Learning signals | hooks (corrections, friction) | AGENTS.md instructions |
@@ -276,7 +278,7 @@ folders; `.agents/rules/`, `.agents/workflows/`, `.gemini/` or `GEMINI.md` (Anti
 | `prompt-intake` (UserPromptSubmit) | a large or risky task prompt (auth, payments, data, production, secrets): asks for a brief (goal, scope, acceptance, assumptions, risks) before the first edit; a documentation task or a plan of three or more steps to build: names the cheaper agent to hand it to (doc-writer, implementer); silent otherwise | Claude Code |
 | `learning-signals` (admin) | user prompt (corrections), tool failure (friction); at session start only the live-session pointer | Claude Code |
 | `session-eval` (admin; PreCompact, SessionEnd, SessionStart) | at the end of every context window it records facts; the session-start summary line is opt-in (`workflow.sessionSummary`); blocks nothing | Claude Code |
-| `stop-check` (Stop) | when a turn ends with code changed after the last passing check: blocks once per edit | Claude Code |
+| `stop-check` (Stop) | when a turn ends with code changed after the last passing check, or with risky work (the intake's test) changed and no reviewer agent run on it: blocks once per edit | Claude Code |
 | `run-hook` | the guard, the post-edit check, the branch note and the brief in other agents, as their events allow (§6) | Codex, Cursor, Copilot, Antigravity, Windsurf |
 | `context-budget` (admin; UserPromptSubmit) | when the context window passes each multiple of the budget: one note to the agent | Claude Code |
 | gates in CI + branch protection | before merge | everyone |
@@ -286,7 +288,7 @@ The enforcement register (`enforcement-audit`) records, for each rule, which of 
 ## 8 · Files and formats
 
 - **Manifest** (`.agents/agent-setup.json`; `.claude/agent-setup.json` before 2.0): `kit {name, version, source}`, `selection
-  {mode, profile, skills, exclude, targets, hooks, roles}` (`mode: measure` is a baseline
+  {mode, profile, skills, exclude, targets, hooks, roles, sessionModel}` (`mode: measure` is a baseline
   install: only the session recorder, no skills, agents, instructions or other hooks), `files {path: hash}`, `links
   {link: target}`, `skipped`, `created`, `blocks`, `settings.added`, `settings.removedByUser`,
   `agentHooks {file: {added, removed}}`.

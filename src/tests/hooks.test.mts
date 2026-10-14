@@ -21,7 +21,7 @@ import {
   costUnits,
   HEAVY_TOKENS,
 } from '../kit/hooks/_transcript.mjs';
-import { classifyPrompt, intakeFor, promptFacts } from '../kit/hooks/_prompt.mjs';
+import { classifyPrompt, intakeFor, promptFacts, scorePrompt } from '../kit/hooks/_prompt.mjs';
 import { costOf, mergeModels, normalizeModel, priceFor, readModels, tiersOf, usageLine, usageReport, usageText } from '../kit/hooks/_usage.mjs';
 import type { ModelTable } from '../kit/hooks/_usage.mjs';
 
@@ -586,7 +586,7 @@ describe('learning-signals', () => {
 });
 
 // ---------------------------------------------------------------------------
-// session-eval, and the transcript parser it shares with eval-board
+// session-eval, and the transcript parser it shares with the CLI
 // ---------------------------------------------------------------------------
 
 type Line = Record<string, unknown>;
@@ -979,6 +979,45 @@ describe('stop-check', () => {
     assert.equal(stop(repo, t, {}, session).stdout, '', 'the second stop for the same edit goes through');
   });
 
+  test('risky work changed and checked, but never reviewed: asks once for the reviewer the project has', () => {
+    const repo = makeRepo();
+    mkdirSync(join(repo, '.claude', 'agents'), { recursive: true });
+    writeFileSync(join(repo, '.claude', 'agents', 'security-reviewer.md'), '---\nname: security-reviewer\n---\n');
+    const risky = 'Add an endpoint that exports an organisation\'s invoices as CSV, with tests';
+    const lines = (after: Line[]): Line[] => [
+      human(risky),
+      call([use('e1', 'Edit', { file_path: join(repo, 'src', 'export.mjs') })]),
+      result('e1', 'ok'),
+      ...after,
+      call([use('b1', 'Bash', { command: 'npm test' })]),
+      result('b1', 'ok'),
+    ];
+    const session = `stop-review-${process.pid}`;
+    const first = decision(stop(repo, transcriptOf(lines([])), {}, session));
+    assert.equal(first.decision, 'block');
+    assert.match(first.reason!, /^This change touches payments and no reviewer has looked at it: have the security-reviewer agent review the diff/);
+    assert.equal(stop(repo, transcriptOf(lines([])), {}, session).stdout, '', 'once per edit');
+
+    // A review, then a fix of its findings: reviewed, so no second review is asked for.
+    const reviewed = lines([
+      call([use('r1', 'Agent', { subagent_type: 'security-reviewer', prompt: 'review the diff' })]),
+      result('r1', 'one high finding'),
+      call([use('e2', 'Edit', { file_path: join(repo, 'src', 'export.mjs') })]),
+      result('e2', 'ok'),
+    ]);
+    assert.equal(stop(repo, transcriptOf(reviewed)).stdout, '');
+
+    // Unchecked and unreviewed: one block carries both asks.
+    const both = decision(stop(repo, transcriptOf([human(risky), call([use('e1', 'Edit', { file_path: join(repo, 'src', 'export.mjs') })]), result('e1', 'ok')])));
+    assert.match(both.reason!, /Code changed after the last check[\s\S]*have the security-reviewer agent review the diff/);
+
+    // Ordinary work, or no reviewer installed: the check alone, as before.
+    const plain = transcriptOf([human('Rename the date helper in src/util.mjs and update its callers'), call([use('e1', 'Edit', { file_path: join(repo, 'src', 'util.mjs') })]), result('e1', 'ok'), call([use('b1', 'Bash', { command: 'npm test' })]), result('b1', 'ok')]);
+    assert.equal(stop(repo, plain).stdout, '');
+    const bare = makeRepo();
+    assert.equal(stop(bare, transcriptOf(lines([]))).stdout, '', 'nothing to name: no reviewer installed');
+  });
+
   test('silent when the check ran after the edit, for prose, when disabled, and on an early run', () => {
     const repo = makeRepo();
     const checked = transcriptOf([human('Fix it'), call([use('e1', 'Edit', { file_path: join(repo, 'a.mjs') })]), result('e1', 'ok'), call([use('b1', 'Bash', { command: 'npm test' })]), result('b1', 'ok')]);
@@ -1036,7 +1075,7 @@ describe('context-budget', () => {
 });
 
 // ---------------------------------------------------------------------------
-// prompt-intake, and the prompt rubric it shares with the rows and eval-board
+// prompt-intake, and the prompt rubric it shares with the rows
 // ---------------------------------------------------------------------------
 
 describe('prompt rubric', () => {
@@ -1359,5 +1398,119 @@ describe('session-eval: what subagents used', () => {
     const start = runHook('session-eval.mjs', { hook_event_name: 'SessionStart', source: 'startup' }, { cwd: repo });
     assert.match(String(start.json?.systemMessage ?? ''), /\n\$(<)?[\d.]+ over 1 window/);
     assert.match(String(start.json?.systemMessage ?? ''), /--summary, --usage/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The prompt rubric and the transcript facts, as the hooks and the CLI read them
+// ---------------------------------------------------------------------------
+
+const STRONG: string = 'Add pagination to `lib/sync.mjs`. Only touch that file, never the tests. Verify with `npm test` and report green.';
+
+describe('scorePrompt: rubric over the user prompt', () => {
+  test('a concrete prompt scores high and names no gaps', () => {
+    const r = scorePrompt(STRONG);
+    assert.ok(r.score >= 85, JSON.stringify(r));
+    assert.deepEqual(r.checks.filter((k) => !k.pass), []);
+    assert.equal(r.suggestions.length, 0);
+  });
+
+  test('a vague prompt scores low and every gap gets advice', () => {
+    const r = scorePrompt('make it better somehow');
+    assert.ok(r.score < 30, JSON.stringify(r));
+    assert.ok(r.suggestions.length >= 5, r.suggestions.join(' | '));
+    assert.match(r.grade, /F/);
+  });
+
+  test('an empty prompt explains itself', () => {
+    const r = scorePrompt('   ');
+    assert.equal(r.score, 0);
+    assert.match(r.suggestions[0], /empty/);
+  });
+});
+
+// A short session: a prompt, a skill read and loaded, a failed edit, a report, and Claude Code's own cost line.
+const SAMPLE_LINES = [
+  { type: 'user', message: { role: 'user', content: 'Add pagination to lib/sync.mjs. Only touch that file. Verify with npm test.' }, timestamp: '2026-09-28T10:00:00.000Z', sessionId: 'sess-1', cwd: '/tmp/proj' },
+  {
+    type: 'assistant',
+    message: {
+      model: 'claude-sonnet-5',
+      usage: { input_tokens: 1200, output_tokens: 300, cache_read_input_tokens: 5000, cache_creation_input_tokens: 1000 },
+      content: [
+        { type: 'thinking', text: 'let me look' },
+        { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '.agents/skills/backend/SKILL.md' } },
+      ],
+    },
+    timestamp: '2026-09-28T10:00:05.000Z',
+    sessionId: 'sess-1',
+  },
+  { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] }, timestamp: '2026-09-28T10:00:06.000Z', sessionId: 'sess-1' },
+  {
+    type: 'assistant',
+    message: {
+      model: 'claude-sonnet-5',
+      usage: { input_tokens: 100, output_tokens: 2000 },
+      content: [
+        { type: 'tool_use', id: 't2', name: 'Skill', input: { skill: 'agent-setup:backend' } },
+        { type: 'tool_use', id: 't3', name: 'Edit', input: { file_path: 'lib/sync.mjs' } },
+      ],
+    },
+    timestamp: '2026-09-28T10:01:00.000Z',
+    sessionId: 'sess-1',
+  },
+  {
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't2', content: 'loaded' }, { type: 'tool_result', tool_use_id: 't3', content: 'no such file', is_error: true }] },
+    timestamp: '2026-09-28T10:01:01.000Z',
+    sessionId: 'sess-1',
+  },
+  {
+    type: 'assistant',
+    message: {
+      model: 'claude-sonnet-5',
+      usage: { input_tokens: 50, output_tokens: 400 },
+      content: [{ type: 'text', text: '## Done\n- Added cursor pagination to lib/sync.mjs with tests\n- Ran npm test: green across the suite today' }],
+    },
+    timestamp: '2026-09-28T10:02:00.000Z',
+    sessionId: 'sess-1',
+  },
+  {
+    type: 'cost-state',
+    sessionId: 'sess-1',
+    totalCostUSD: 0.05,
+    totalAPIDuration: 90000,
+    totalToolDuration: 1200,
+    totalDuration: 120000,
+    modelUsage: { 'claude-sonnet-5': { inputTokens: 100, outputTokens: 2000, costUSD: 0.05 } },
+  },
+  { type: 'file-history-snapshot', message: {}, sessionId: 'sess-1' },
+];
+const SAMPLE_TEXT: string = SAMPLE_LINES.map((l) => JSON.stringify(l)).join('\n');
+
+describe('parseTranscript: transcript fact', () => {
+  test('counts one prompt, three tool calls, one failure, real tokens and real cost', () => {
+    const s = parseTranscript(SAMPLE_TEXT, 'sess-1');
+    assert.equal(s.sessionId, 'sess-1');
+    assert.equal(s.prompts.length, 1, 'tool_result-only messages are not prompts');
+    assert.deepEqual(s.tools.map((t) => t.name), ['Read', 'Skill', 'Edit']);
+    assert.deepEqual(s.tools.map((t) => t.error), [false, false, true]);
+    assert.equal(s.inputTokens, 1350);
+    assert.equal(s.outputTokens, 2700);
+    assert.equal(s.cacheRead, 5000);
+    assert.equal(s.costUsd, 0.05, 'cost-state wins over estimates');
+    assert.deepEqual(s.skillCalls, ['backend']);
+    assert.deepEqual(s.skillDocReads, ['backend']);
+    assert.deepEqual(s.filesChanged, [], 'the only edit failed, so no file changed');
+    assert.match(s.lastAssistantText, /## Done/);
+    assert.ok(!s.lastAssistantText.includes('let me look'), 'thinking blocks are not output');
+    assert.equal(s.started, '2026-09-28T10:00:00.000Z');
+  });
+
+  test('unknown line types are ignored, empty input parses clean', () => {
+    const s = parseTranscript('not json\n{"type":"weird","x":1}\n');
+    assert.equal(s.prompts.length, 0);
+    assert.equal(s.tools.length, 0);
+    assert.equal(s.costUsd, null);
   });
 });

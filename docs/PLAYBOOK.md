@@ -66,7 +66,7 @@ by `--roles developer`.
 | `context-budget` (admin) | each prompt | past 150k tokens (and each further 150k), asks the agent to delegate, read narrowly and hand off | ~90 tokens, once per band |
 | `guard-git` | before a shell command | denies production writes, force-pushes, hook bypasses; names the alternative | only when it denies |
 | `check-gates` | after an edit | runs the fast check that edit could break | only on failure |
-| `stop-check` | end of a turn | code changed after the last passing check → asks once for the check | one turn at most, once per edit |
+| `stop-check` | end of a turn | code changed after the last passing check → asks once for the check; risky work never reviewed → asks for the reviewer in the same block | one turn at most, once per edit |
 | `session-eval` | compaction, session end | records one row of facts for the window | none |
 
 ## 3 · The numbers
@@ -206,6 +206,10 @@ repository is public).
 
 - **Before**: the baseline (§1), and `/sdlc-init` once the kit is on — without verified gates
   the stop-check can only ask for "the test and lint commands".
+- **The session model**: decide it once for the team — `update <project> --session-model
+  opusplan` (Opus while planning, Sonnet while building) is the cheapest setup that keeps plans
+  and reviews on the strongest model, since the helpers carry their own. Compare `usage` before
+  and after over 20 windows; anyone can still `/model` for a session.
 - **The 15-minute demo**, live in the team's repository:
   1. a small fix → made, checked and reported, with no ceremony;
   2. a risky change ("add refunds to checkout") → the brief, corrected in one line, the plan,

@@ -2,10 +2,10 @@
   "$comment": "The model tiers: which model and reasoning effort each kind of work runs on, per provider, and what each model costs. One place for all of it: the installer reads it to write the AGENTS.md tier table and each agent's model for every targeted tool, lint checks the agents against it, and the usage report prices recorded sessions with it. An install copies it to .agents/models.json; a project adapts it in .agents/sdlc.config.json under `models` (its own prices, another model for a tier), never here. Prices are USD per million tokens at the standard tier, for prompts up to the `long.above` threshold where one is given; `cacheWrite` is the 5-minute cache write and `cacheWrite1h` the 1-hour one (Claude Code writes the main conversation's cache for an hour and a subagent's for five minutes). Check them against each provider's `source` when `asOf` gets old.",
   "asOf": "2026-10-12",
   "tiers": {
-    "frontier": { "use": "the hardest work: a plan for critical or cross-cutting change, a bug that survived two attempts, a security review where money, auth or data loss is at stake" },
-    "high": { "use": "planning M and L work, reviewing a change, debugging, decisions that are expensive to reverse" },
-    "medium": { "use": "building to a plan, writing tests, routine fixes and refactors" },
-    "low": { "use": "searching and mapping code, summarising check output, docs and changelog, mechanical edits" }
+    "frontier": { "use": "critical plans and reviews, bugs that survived two attempts" },
+    "high": { "use": "plans, reviews, debugging" },
+    "medium": { "use": "building to a plan, tests, routine fixes" },
+    "low": { "use": "search, check output, docs, mechanical edits" }
   },
   "families": {
     "$comment": "Older or unlisted models of a family belong to its tier, so a session recorded on last year's models is still grouped and priced.",

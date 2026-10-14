@@ -15,13 +15,13 @@
 //
 // Silent for questions, short replies, slash commands and short tasks; a short follow-up right
 // after a briefed request refines it and gets no second note. The scoring lives in _prompt.mjs,
-// shared with the session-eval rows and the eval-board. Off with `workflow.promptIntake: false`
+// shared with the session-eval rows. Off with `workflow.promptIntake: false`
 // in .agents/sdlc.config.json. Never throws; always exits 0.
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig, readJson, readPayload, logError } from './_config.mjs';
+import { hasAgent, loadConfig, readJson, readPayload, reviewerFor, logError } from './_config.mjs';
 import { intakeFor, routeFor } from './_prompt.mjs';
 
 // The entry point is at the BOTTOM of this file (see learning-signals.mjs for
@@ -39,15 +39,10 @@ function stateFile(sessionId) {
   return join(dir, `prompt-intake-${String(sessionId || 'session').replace(/[^\w-]/g, '')}.json`);
 }
 
-/** An agent this project has, in the folder of any agent the kit set up. */
-const hasAgent = (root, name) =>
-  existsSync(join(root, '.claude', 'agents', `${name}.md`)) || existsSync(join(root, '.agents', 'agents', `${name}.md`)) || existsSync(join(root, '.codex', 'agents', `${name}.toml`));
-
-/** The reviewer to name for risky work: the most specific one this project has. */
-function reviewerFor(root, risks) {
-  if (risks.some((r) => r !== 'production') && hasAgent(root, 'security-reviewer')) return 'the security-reviewer agent';
-  if (hasAgent(root, 'code-reviewer')) return 'the code-reviewer agent';
-  return 'a review of your own diff against the brief';
+/** How to name the review for risky work: the most specific reviewer this project has. */
+function reviewOf(root, risks) {
+  const reviewer = reviewerFor(root, risks);
+  return reviewer ? `the ${reviewer} agent` : 'a review of your own diff against the brief';
 }
 
 const ROUTES = {
@@ -82,7 +77,7 @@ function onPrompt(payload, root, state, seen) {
   ];
   if (need.missing.length) lines.push(`It does not say ${need.missing.map((id) => GAPS[id]).join(', ')}: fill those in from the code, as assumptions.`);
   const deliver = existsSync(join(root, '.agents', 'skills', 'deliver', 'SKILL.md')) ? ' — the deliver skill has the steps' : '';
-  lines.push(`Plan before editing, and have ${reviewerFor(root, need.risks)} check the change before you call it done${deliver}. No need to mention this note.`);
+  lines.push(`Plan before editing, and have ${reviewOf(root, need.risks)} check the change before you call it done${deliver}. No need to mention this note.`);
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: lines.join('\n') } }));
 }
 

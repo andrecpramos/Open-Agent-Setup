@@ -18,8 +18,8 @@
 //
 // The hook also leaves a live-session pointer (`.agents/learnings/live-session.json`)
 // on every SessionStart: session id plus the transcript path the payload carries.
-// `agent-setup eval-board --project` tails that transcript for real tokens, cost,
-// model, tool calls and skill activations — no guessing, no extra per-tool hook.
+// `agent-setup usage --session current` prices that transcript, its subagents included —
+// no guessing, no extra per-tool hook.
 //
 // Design rules, same as every hook in this kit: silent unless it has something
 // specific to say; never throws; always exits 0; never writes outside
@@ -58,7 +58,7 @@ async function run() {
 }
 
 // ---------------------------------------------------------------------------
-// Live-session pointer for `agent-setup eval-board --project`.
+// Live-session pointer for `agent-setup usage --session current`.
 // Silent by design (like the friction log): it is a sensor, not a signal.
 // Only what the payload carries is recorded — no transcript is ever read here.
 // ---------------------------------------------------------------------------

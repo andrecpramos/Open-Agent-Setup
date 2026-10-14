@@ -56,7 +56,7 @@ Don't touch <what is out of scope>.
 ## Which model, and what it costs
 
 Not every step needs the best model. The agent hands each step to a helper running on the
-cheapest model that does it well (`AGENTS.md`, "Model tiers"): searching the code, reading
+cheapest model that does it well (`AGENTS.md`, "Who does what, on which model"): searching the code, reading
 test output and writing the changelog on a small model; building from an agreed plan on a
 mid-size one; plans and reviews on the strongest; the very hardest work on the top model. You
 do not pick these: the helpers carry their own model.
@@ -69,7 +69,9 @@ You pick the model of your own session, which most of the tokens go through:
 | a hard design or a bug that resists | `/model opus` |
 | the hardest, longest work | `/model fable`, where your plan includes it |
 
-In Codex and other tools, choose the model the same way, in the tool's model picker.
+If this repository's setup chose a starting model for everyone (`agent-setup ... --session-model`),
+sessions open on it; `/model` still changes yours for the session. In Codex and other tools,
+choose the model the same way, in the tool's model picker.
 
 **What did it cost?** `node .agents/hooks/session-eval.mjs --usage` (where the setup records
 sessions) shows the cost per model, what handing steps to cheaper helpers saved, and whether

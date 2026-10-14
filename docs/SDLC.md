@@ -181,7 +181,7 @@ section — is the only one in the kit; the `architecture` skill uses the same f
 context window — its one-line summary at `SessionStart` is opt-in (`workflow.sessionSummary`):
 the numbers are the admin's, read with `agent-setup evals`; `stop-check` blocks the end of a turn once when code changed after the
 last passing check — a command the permission system or a hook refused never counts as a
-check; `context-budget` notes the agent when a window passes a size budget. `gateCommands()`
+check — or when risky work changed and no reviewer agent looked at it (rule 23b); `context-budget` notes the agent when a window passes a size budget. `gateCommands()`
 makes a project's own gate commands count as checks.
 
 **23 · A risky request becomes a task before work starts.** `prompt-intake` (its rubric in
@@ -204,6 +204,14 @@ each plan step to the implementer. It stays narrow — a code change that also m
 README is not a docs task — because a false routing costs a cold start and a note on every
 prompt teaches everyone to skim. Plans and reviews go up a tier through the agents' own models
 and the deliver skill, which already happen; the hook only handles the way down.
+
+**23b · Risky work is reviewed before it is called done.** `stop-check` asks, in the same single
+block as the check, for the security-reviewer (or the code-reviewer where it is the one
+installed) when a task prompt in the window was risky by the intake's test and code changed,
+and no reviewer agent ran after the first edit. Measured: a session running on Sonnet read the
+intake's "have the security-reviewer check the change" and finished without it; at the stop it
+ran the review, which led to two fixes. Counted from the first edit, so fixing a review's
+findings never asks for a second review; once per edit, like the check.
 
 **24 · The switches.** `workflow` in `sdlc.config.json`: `verifyBeforeStop`,
 `contextWarnTokens`, `promptIntake` and `retroEvery` (on by default), `sessionSummary` and

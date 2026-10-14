@@ -7,7 +7,7 @@
   "groups": {
     "domain": "Engineering expertise, written for this kit: loads when the work matches the domain",
     "core": "The delivery workflow — installed in every project",
-    "design": "UI build direction and real-browser verification — opt-in",
+    "design": "UI build direction and real-browser verification — opt-in (--skills @design): the build-direction skill is ~22k tokens when it loads, and browser checks need a CLI on each machine",
     "admin": "Setup, audit and the learning loop — the admin role"
   },
   "skills": {
@@ -29,14 +29,14 @@
     "enforcement-audit": { "group": "admin", "summary": "Audit what the repo claims against what it enforces; ranked gap register" }
   },
   "agents": {
-    "scout": { "requires": [], "step": "Explore", "tier": "low", "sandbox": "read-only", "when": "more than a handful of files to read; \"where is…\", \"how does…\", \"what uses…\"", "summary": "Read-only exploration in its own context; returns a file:line map, not file contents" },
-    "planner": { "requires": [], "step": "Plan", "tier": "high", "sandbox": "read-only", "when": "M and L work, before the first edit — the plan, not the reading behind it, comes back to you; on the frontier tier for critical or cross-cutting change", "summary": "Read-only: turns a brief into a plan of small, checkable steps — files, order, the test for each step, risks" },
-    "implementer": { "requires": [], "step": "Build", "tier": "medium", "when": "an agreed plan to build, more than a few edits, when you run above the medium tier — one step at a time, never two writers at once", "summary": "Builds one plan step at a time, runs the step's check, returns what changed and the evidence" },
+    "scout": { "requires": [], "step": "Explore", "tier": "low", "sandbox": "read-only", "when": "more than a handful of files to read: \"where is…\", \"how does…\", \"what uses…\"", "summary": "Read-only exploration in its own context; returns a file:line map, not file contents" },
+    "planner": { "requires": [], "step": "Plan", "tier": "high", "sandbox": "read-only", "when": "M and L work, before the first edit; frontier for critical or cross-cutting change", "summary": "Read-only: turns a brief into a plan of small, checkable steps — files, order, the test for each step, risks" },
+    "implementer": { "requires": [], "step": "Build", "tier": "medium", "when": "a plan of more than a few edits, when you run above medium — one step per call", "summary": "Builds one plan step at a time, runs the step's check, returns what changed and the evidence" },
     "gate-runner": { "requires": ["gates"], "step": "Verify", "tier": "low", "when": "before a commit or PR, or when a full gate run would flood the conversation", "summary": "Runs the gates in its own context and returns MERGE-SAFE or BLOCKED" },
-    "code-reviewer": { "requires": [], "step": "Review", "tier": "high", "when": "a change across several files or layers, or one that is risky — before you report it done", "summary": "Read-only review of a diff against its brief: correctness, tests, scope; ranked findings" },
-    "security-reviewer": { "requires": ["security"], "step": "Review", "tier": "high", "sandbox": "read-only", "when": "auth, sessions, permissions, payments, personal data, uploads, outbound requests, webhooks, LLM tools — on the frontier tier where money, auth or data loss is at stake", "summary": "Read-only security review of a diff; ranked, evidenced findings" },
-    "architecture-reviewer": { "requires": ["architecture"], "step": "Review", "tier": "high", "sandbox": "read-only", "when": "a new module, dependency, service, queue or datastore; a change that crosses layers", "summary": "Read-only boundary and dependency review of a change" },
-    "doc-writer": { "requires": [], "step": "Docs", "tier": "low", "when": "any docs task beyond a line or two — API and usage docs, README, the changelog, comments — for code as it is or a change just made; a mechanical edit repeated across many files", "summary": "Writes docs, the changelog and comments on a cheap model, and mechanical edits across files" },
+    "code-reviewer": { "requires": [], "step": "Review", "tier": "high", "when": "a change across several files or layers, or a risky one — before calling it done", "summary": "Read-only review of a diff against its brief: correctness, tests, scope; ranked findings" },
+    "security-reviewer": { "requires": ["security"], "step": "Review", "tier": "high", "sandbox": "read-only", "when": "auth, permissions, payments, personal data, uploads, webhooks, outbound calls, LLM tools; frontier where money or data loss is at stake", "summary": "Read-only security review of a diff; ranked, evidenced findings" },
+    "architecture-reviewer": { "requires": ["architecture"], "step": "Review", "tier": "high", "sandbox": "read-only", "when": "a new module, dependency, service or datastore; a change across layers", "summary": "Read-only boundary and dependency review of a change" },
+    "doc-writer": { "requires": [], "step": "Docs", "tier": "low", "when": "any docs task beyond a line or two; one mechanical edit across many files", "summary": "Writes docs, the changelog and comments on a cheap model, and mechanical edits across files" },
     "docs-keeper": { "requires": ["sdlc-init"], "step": "Docs", "tier": "low", "when": "after a structural change, and before a release", "summary": "Verifies .agents/docs claims against the tree and fixes drift" }
   },
   "hooks": {
@@ -44,7 +44,7 @@
     "run-hook": { "role": "developer", "summary": "Runs the hooks in Codex, Cursor, GitHub Copilot, Antigravity and Windsurf, translating each agent's hook format" },
     "guard-git": { "role": "developer", "summary": "Denies production writes, force-pushes to shared branches, discarding uncommitted work and hook bypasses — naming the alternative" },
     "check-gates": { "role": "developer", "summary": "Runs the fast check an edit could have broken, right after the edit" },
-    "stop-check": { "role": "developer", "summary": "Asks once for a check when the agent finishes with code changed after the last one" },
+    "stop-check": { "role": "developer", "summary": "Asks once for a check when the agent finishes with code changed after the last one, and for a review of risky work nobody reviewed" },
     "prompt-intake": { "role": "developer", "summary": "A large or risky request (auth, payments, data, production, secrets) → the agent writes a brief first; a docs task or a plan to build → the cheaper agent for it" },
     "branch-check": { "role": "developer", "summary": "Speaks at session start only when the branch needs attention: production, detached, stale, or a wrong config" },
     "session-eval": { "role": "admin", "summary": "Records one row of facts per context window, at no token cost" },
@@ -56,8 +56,8 @@
   "profiles": {
     "standard": { "description": "The general engineering skills and the delivery workflow.", "skills": ["frontend", "backend", "api-design", "security", "architecture"] },
     "full": { "description": "Every skill in the kit.", "skills": "*" },
-    "web": { "description": "Full-stack web product, with UI build direction and browser verification.", "skills": ["frontend", "backend", "api-design", "security", "architecture", "design-system", "@design"] },
-    "frontend": { "description": "Frontend app or site, with UI build direction and browser verification.", "skills": ["frontend", "design-system", "api-design", "security", "@design"] },
+    "web": { "description": "Full-stack web product. UI build direction and browser verification are opt-in: --skills @design.", "skills": ["frontend", "backend", "api-design", "security", "architecture", "design-system"] },
+    "frontend": { "description": "Frontend app or site. UI build direction and browser verification are opt-in: --skills @design.", "skills": ["frontend", "design-system", "api-design", "security"] },
     "service": { "description": "Backend service or API.", "skills": ["backend", "api-design", "security", "architecture"] },
     "ai-app": { "description": "Product with LLM or agent features.", "skills": ["backend", "api-design", "security", "architecture", "agent-eval"] },
     "library": { "description": "Library, SDK or CLI.", "skills": ["architecture", "security", "api-design"] },

@@ -3,7 +3,6 @@
 import { join } from 'node:path';
 import { TEMPLATES, kitVersion } from './paths.mjs';
 import { readText, today } from './util.mjs';
-import { skillSummary } from './catalog.mjs';
 import { tierTable } from './models.mjs';
 import type { ModelTable } from '../kit/hooks/_usage.mjs';
 
@@ -66,10 +65,8 @@ export type BuiltVars = {
   DATE: string;
   STACK: string;
   COMMANDS: string;
-  SKILLS_TABLE: string;
   TEAM_TABLE: string;
   CLAUDE_AGENTS: string;
-  CLAUDE_COMMANDS: string;
   CLAUDE_SECTION: string;
   KB_NOTE: string;
   LEARNING_LOOP: string;
@@ -126,10 +123,14 @@ export function buildVars({ detection, selection, catalog, agentSummaries, targe
   const workflow = WORKFLOW_ORDER.filter((n) => names.has(n));
   const admin = ADMIN_ORDER.filter((n) => names.has(n));
 
-  const rows = domain.map((s) => `| \`${s.name}\` | ${skillSummary(catalog, s.name)} |`);
-  if (workflow.length) rows.push(`| ${workflow.map((n) => `\`${n}\``).join(' · ')} | The delivery workflow: deliver a change, run the gates, ship it, hand off |`);
-  if (admin.length) rows.push(`| ${admin.map((n) => `\`${n}\``).join(' · ')} | For whoever maintains the setup, run by name only: set up the contract, route lessons, audit enforcement |`);
-  const skillsTable = rows.length ? ['| Skill | Use it for |', '|---|---|', ...rows].join('\n') : '_No skills installed._';
+  // The names only: a tool that loads skills already sees their descriptions, every session, and
+  // one that does not opens the SKILL.md the name points at. A summary table here paid twice.
+  const code = (list: string[]): string => list.map((n) => `\`${n}\``).join(' · ');
+  const skillGroups: string[] = [
+    ...(domain.length ? [`${code(domain.map((s) => s.name))} for the areas`] : []),
+    ...(workflow.length ? [`${code(workflow)} for the workflow`] : []),
+    ...(admin.length ? [`${code(admin)} for whoever maintains the setup, run by name only`] : []),
+  ];
 
   const commands = detection.commands.length
     ? [
@@ -162,14 +163,11 @@ export function buildVars({ detection, selection, catalog, agentSummaries, targe
       ].join('\n')
     : 'No subagents installed: do each step yourself.';
   const claudeAgents = team.length
-    ? '- **Subagents** (the "Who does what" table in AGENTS.md): run independent reviews in parallel, give each the brief and the diff, and check what comes back. Spawn them from the repository root: they start in the current directory and write their project memory under it. Each runs on its own tier\'s model; to move one run up a tier, pass the Agent tool\'s `model` (`fable` for the frontier tier, `opus` when Fable is not available to you).'
+    ? '- **Subagents:** run independent reviews in parallel, give each the brief and the diff, and check what comes back; spawn them from the repository root, where they write their project memory. Each runs on its tier\'s model; to move one run up a tier, pass the Agent tool\'s `model` (`fable` for frontier, `opus` when Fable is not available to you).'
     : '';
 
-  const invocable = [...workflow, ...domain.map((s) => s.name)].map((n) => `\`/${n}\``);
-
-  const skillsLocation = targets.includes('claude')
-    ? 'Each area has a playbook in `.agents/skills/<name>/SKILL.md`; Claude Code reads the same folders through per-clone links in `.claude/skills/`.'
-    : 'Each area has a playbook in `.agents/skills/<name>/SKILL.md`.';
+  const skillsWhere: string = `Playbooks live in \`.agents/skills/<name>/SKILL.md\`${skillGroups.length ? `: ${skillGroups.join('; ')}` : ''}.`;
+  const skillsLocation = targets.includes('claude') ? `${skillsWhere} Claude Code reads the same folders through per-clone links in \`.claude/skills/\`.` : skillsWhere;
   // Which agents' sessions a hook holds it in: Claude Code's own hooks, the others through run-hook.
   const guarded: string[] = hooks ? targets.map((t) => GUARD_NAMES[t]).filter((n): n is string => Boolean(n)) : [];
   const enforcementNote = !guarded.length
@@ -190,10 +188,6 @@ export function buildVars({ detection, selection, catalog, agentSummaries, targe
         '',
       ].join('\n')
     : '';
-  const adminHooks = withAdmin && hooks
-    ? ' `learning-signals` and `context-budget` add a one-line note when a correction or a large context calls for it.'
-    : '';
-
   return {
     SKILLS_LOCATION: skillsLocation,
     ENFORCEMENT_NOTE: enforcementNote,
@@ -202,13 +196,11 @@ export function buildVars({ detection, selection, catalog, agentSummaries, targe
     DATE: today(),
     STACK: detection.stack.length ? detection.stack.join(', ') : 'nothing detected — fill in by hand',
     COMMANDS: commands,
-    SKILLS_TABLE: skillsTable,
     TEAM_TABLE: teamTable,
     CLAUDE_AGENTS: claudeAgents,
-    CLAUDE_COMMANDS: invocable.length ? invocable.join(' · ') : '—',
     // Only with the claude target: AGENTS.md is every agent's file, and Claude Code reads it too.
     CLAUDE_SECTION: targets.includes('claude')
-      ? `${render(template('claude-section.md'), { CLAUDE_AGENTS: claudeAgents, CLAUDE_COMMANDS: invocable.length ? invocable.join(' · ') : '—', ADMIN_HOOKS: adminHooks }).replace(/\n{3,}/g, '\n\n')}\n`
+      ? `${render(template('claude-section.md'), { CLAUDE_AGENTS: claudeAgents }).replace(/\n{3,}/g, '\n\n')}\n`
       : '',
     KB_NOTE: kbNote,
     LEARNING_LOOP: learningLoop,
@@ -216,19 +208,14 @@ export function buildVars({ detection, selection, catalog, agentSummaries, targe
   };
 }
 
-/** The AGENTS.md "Model tiers" section: when to route a step to another tier, and the table. */
+/** Under the team table: the tiers' models, and when a step changes tier. */
 function modelTiers(models: ModelTable, targets: string[]): string {
   return [
-    '### Model tiers',
-    '',
-    'Each step runs on the cheapest tier that does it well; the agents above already run on theirs.',
-    'Size the work first: XS and S stay on your own model — a subagent starts cold and re-reads what',
-    'you already have. From M up, hand a step to the agent of its tier when that differs from yours:',
-    'plans and reviews up to high, building down to medium, searching, gate output and docs down to',
-    'low. Escalate on evidence — a step that failed twice moves up one tier, critical work is planned',
-    'on frontier — and never move a review of risky work down to save money.',
-    '',
     tierTable(models, targets),
+    '',
+    'XS and S work stays on your own model: a subagent starts cold and re-reads what you have. From',
+    'M up, hand each step to the agent of its tier. Escalate on evidence — a step that failed twice',
+    'moves up one tier — and never move a review of risky work down to save money.',
     '',
     '',
   ].join('\n');

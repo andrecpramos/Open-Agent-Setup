@@ -1,4 +1,4 @@
-// Transcript folding, shared by the session-eval hook and `agent-setup eval-board`.
+// Transcript folding, shared by the session-eval hook and the CLI (`usage`, `evals`, `report`).
 //
 // A Claude Code transcript is JSONL, one line per event. This module folds those
 // lines into facts (tokens, tool calls, files, skills) and derives what the
@@ -301,7 +301,9 @@ export function modelBuckets(models) {
 function onToolUse(acc, fold, b) {
   const name = b.name;
   const summary = summarizeToolInput(name, b.input).slice(0, 160);
-  const tool = { name, summary, error: false, done: false, tokens: 0, call: acc.calls, redundant: false, verify: null, checkFailed: false, denied: false };
+  // For a subagent call, the agent it ran: where a review or a check sits against the last edit.
+  const agent = SUBAGENT_TOOLS.has(name) && isRecord(b.input) ? String(b.input.subagent_type ?? 'general-purpose').split(':').pop() || 'general-purpose' : null;
+  const tool = { name, summary, agent, error: false, done: false, tokens: 0, call: acc.calls, redundant: false, verify: null, checkFailed: false, denied: false };
   if (SHELL_TOOLS.has(name) && isRecord(b.input) && typeof b.input.command === 'string') {
     const m = VERIFY_RE.exec(b.input.command);
     if (m) tool.verify = m[1].replace(/\s+/g, ' ');
@@ -312,7 +314,7 @@ function onToolUse(acc, fold, b) {
   if (id) fold.pending.set(id, { index: acc.tools.length, input: b.input });
   acc.tools.push(tool);
   if (name === 'Skill' && summary) acc.skillCalls.push(summary);
-  if (SUBAGENT_TOOLS.has(name) && isRecord(b.input)) acc.agentCalls.push(String(b.input.subagent_type ?? 'general-purpose').split(':').pop() || 'general-purpose');
+  if (agent) acc.agentCalls.push(agent);
   if (name === 'Read' || name === 'Glob' || name === 'Grep') {
     const f = isRecord(b.input) ? (str(b.input.file_path) ?? str(b.input.path)) : null;
     const m = f ? SKILL_DOC_RE.exec(f) : null;
@@ -601,7 +603,7 @@ export function windowFacts(acc, { root = '', checks: extraChecks = [] } = {}) {
 
 // ---------------------------------------------------------------------------
 // Row summaries: the few numbers that say whether work is getting better.
-// Shared by `agent-setup evals`, the eval-board and the session-start line.
+// Shared by `agent-setup evals`, `report` and the session-start line.
 // ---------------------------------------------------------------------------
 
 /** Price ratios relative to input tokens, the same for current Claude models: cache write, cache read, output. */
