@@ -25,7 +25,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LONG_PROMPT, formatMetric, modelBuckets, parseTranscript, windowMetrics } from './_transcript.mjs';
+import { LONG_PROMPT, formatMetric, modelBuckets, parseTranscript, subagentFile, windowMetrics } from './_transcript.mjs';
 
 export const TIERS = ['frontier', 'high', 'medium', 'low'];
 const RANK = Object.fromEntries(TIERS.map((t, i) => [t, i]));
@@ -176,14 +176,14 @@ export function addBucket(into, b) {
 export function subagentUsage(transcriptPath, runs, state = { depth: 0, seen: new Set() }) {
   const out = {};
   if (typeof transcriptPath !== 'string' || !transcriptPath || !Array.isArray(runs) || state.depth > 2) return out;
-  const dir = join(transcriptPath.replace(/\.jsonl$/i, ''), 'subagents');
   for (const run of runs) {
-    const id = isRecord(run) && typeof run.id === 'string' && /^[\w-]+$/.test(run.id) ? run.id : null;
-    if (!id || state.seen.has(id)) continue;
+    const id = isRecord(run) && typeof run.id === 'string' ? run.id : null;
+    const file = subagentFile(transcriptPath, id);
+    if (!file || state.seen.has(id)) continue;
     state.seen.add(id);
     let text;
     try {
-      text = readFileSync(join(dir, `agent-${id}.jsonl`), 'utf8');
+      text = readFileSync(file, 'utf8');
     } catch {
       continue;
     }

@@ -25,6 +25,10 @@
 //    facts cover the main thread; each Task/Agent call counts as one subagent,
 //    by its type, and its agentId (from the result's toolUseResult) lands in
 //    subagentRuns, so _usage.mjs can read and price that run.
+//  - A subagent run in the background returns at once (toolUseResult.status
+//    "async_launched", with its agentId); its work is finished where a user line
+//    <task-notification><task-id>agentId</task-id>… arrives, which may happen
+//    again when it is resumed.
 //  - usage.cache_creation splits cache writes by lifetime: Claude Code writes
 //    the main thread's cache for an hour (2× input) and a subagent's for five
 //    minutes (1.25×). Both are kept, or the price math is off by the difference.
@@ -36,6 +40,7 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const DOC_RE = /\.(md|mdx|markdown|txt|rst|adoc)$/i;
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
+const TASK_DONE_RE = /<task-notification>\s*<task-id>([\w-]+)<\/task-id>/g;
 const SKILL_DOC_RE = /[\\/]skills[\\/](([a-z0-9]+(-[a-z0-9]+)*))\/SKILL\.md$/i;
 
 // Tool output is measured in estimated tokens: characters / 4, a flat rate per image.
@@ -160,6 +165,7 @@ export function emptySession(sessionId = '') {
     skillDocReads: [],
     agentCalls: [],
     subagentRuns: [],
+    agentsDone: {},
     briefs: 0,
     lastAssistantText: '',
     costUsd: null,
@@ -300,10 +306,12 @@ export function modelBuckets(models) {
 
 function onToolUse(acc, fold, b) {
   const name = b.name;
-  const summary = summarizeToolInput(name, b.input).slice(0, 160);
+  // A file path is kept whole: its extension decides whether an edit to it needs a check.
+  const full = summarizeToolInput(name, b.input);
+  const summary = fileOf(b.input) === full ? full : full.slice(0, 160);
   // For a subagent call, the agent it ran: where a review or a check sits against the last edit.
   const agent = SUBAGENT_TOOLS.has(name) && isRecord(b.input) ? String(b.input.subagent_type ?? 'general-purpose').split(':').pop() || 'general-purpose' : null;
-  const tool = { name, summary, agent, error: false, done: false, tokens: 0, call: acc.calls, redundant: false, verify: null, checkFailed: false, denied: false };
+  const tool = { name, summary, agent, agentId: null, background: false, error: false, done: false, tokens: 0, call: acc.calls, redundant: false, verify: null, checkFailed: false, denied: false };
   if (SHELL_TOOLS.has(name) && isRecord(b.input) && typeof b.input.command === 'string') {
     const m = VERIFY_RE.exec(b.input.command);
     if (m) tool.verify = m[1].replace(/\s+/g, ' ');
@@ -331,6 +339,10 @@ function onToolResult(acc, fold, b, meta) {
   tool.done = true;
   // A subagent's run: its id names its own transcript, which holds what it cost.
   const agentId = meta ? str(meta.agentId) : null;
+  if (SUBAGENT_TOOLS.has(tool.name) && agentId) {
+    tool.agentId = agentId;
+    tool.background = meta.status === 'async_launched' || meta.isAsync === true;
+  }
   if (SUBAGENT_TOOLS.has(tool.name) && agentId && !acc.subagentRuns.some((r) => r.id === agentId)) {
     const type = str(meta.agentType) ?? (isRecord(p.input) ? str(p.input.subagent_type) : null) ?? 'general-purpose';
     acc.subagentRuns.push({ id: agentId, type: type.split(':').pop() || 'general-purpose', model: str(meta.resolvedModel) });
@@ -409,6 +421,8 @@ export function addTranscriptLines(acc, text) {
       }
       const joined = texts.join('\n');
       if (joined && isHumanPrompt(entry, joined)) acc.prompts.push({ text: joined.slice(0, 2000), ts: str(entry.timestamp) });
+      // A background subagent's work is finished here: the tools before this point ran without it.
+      for (const m of joined.matchAll(TASK_DONE_RE)) (acc.agentsDone ??= {})[m[1]] = acc.tools.length;
       noteTimestamp(acc, entry.timestamp);
       continue;
     }
@@ -506,24 +520,58 @@ function needsCheck(tool, root) {
   return !/^([a-z]:)?\//i.test(rel);
 }
 
+/** A subagent run's own transcript, beside the session's: <session>/subagents/agent-<id>.jsonl; null for an id that is not one. */
+export function subagentFile(transcriptPath, agentId) {
+  if (typeof transcriptPath !== 'string' || !transcriptPath || typeof agentId !== 'string' || !/^[\w-]+$/.test(agentId)) return null;
+  return `${transcriptPath.replace(/\.jsonl$/i, '')}/subagents/agent-${agentId}.jsonl`;
+}
+
 /**
- * The facts one row records for a folded window: JSON-ready, snake_case, no
- * prompt or command text. `root` makes file paths relative to the project.
+ * Where a window's edits and checks sit, as positions on its tool list: a tool's index, or
+ * half a step before the first tool after a background subagent's completion. `subagents`
+ * holds the windowFacts of each subagent run's own transcript, by agentId (the caller reads
+ * them): code a subagent changed is an edit here too, and a check it ran after its own last
+ * edit counts like one run here. A background run that has not finished has changed nothing
+ * this thread could check yet. `checks`: a project's own gate commands.
  */
-export function windowFacts(acc, { root = '', checks: extraChecks = [] } = {}) {
-  const tools = acc.tools;
-  const calls = acc.calls;
+export function editMarks(acc, { root = '', checks: extraChecks = [], subagents = {} } = {}) {
   // A project's own gate commands (sdlc.config.json) count as checks too.
   const extra = extraChecks.filter((s) => typeof s === 'string' && s.trim()).map((s) => s.trim());
   const checkOf = (t) => t.verify ?? (SHELL_TOOLS.has(t.name) ? (extra.find((s) => t.summary.includes(s)) ?? null) : null);
-  let lastEdit = -1;
-  tools.forEach((t, i) => {
-    if (needsCheck(t, root)) lastEdit = i;
+  const edits = [];
+  const checks = [];
+  const files = [];
+  acc.tools.forEach((t, i) => {
+    if (needsCheck(t, root)) edits.push(i);
+    const command = checkOf(t);
+    if (command && t.done && !t.denied) checks.push({ at: i, command, ok: !(t.error || t.checkFailed) });
+    const sub = t.agentId && isRecord(subagents) && isRecord(subagents[t.agentId]) ? subagents[t.agentId] : null;
+    const v = sub && isRecord(sub.verification) ? sub.verification : null;
+    if (!v?.edited) return;
+    const at = t.background ? (acc.agentsDone?.[t.agentId] ?? Number.NaN) - 0.5 : i;
+    if (!Number.isFinite(at)) return;
+    edits.push(at);
+    if (Array.isArray(sub.files_changed)) files.push(...sub.files_changed);
+    const ran = Array.isArray(v.commands) ? v.commands : [];
+    if (v.after_last_edit && typeof v.passed === 'boolean') checks.push({ at: at + 0.25, command: ran[ran.length - 1] ?? t.agent, ok: v.passed });
   });
-  const checks = tools.filter((t, i) => checkOf(t) && t.done && !t.denied && i > lastEdit);
-  const edited = lastEdit >= 0;
+  return { edits, checks, files };
+}
+
+/**
+ * The facts one row records for a folded window: JSON-ready, snake_case, no
+ * prompt or command text. `root` makes file paths relative to the project;
+ * `checks` and `subagents` are editMarks'.
+ */
+export function windowFacts(acc, { root = '', checks: extraChecks = [], subagents = {} } = {}) {
+  const tools = acc.tools;
+  const calls = acc.calls;
+  const marks = editMarks(acc, { root, checks: extraChecks, subagents });
+  const edited = marks.edits.length > 0;
+  const lastEdit = edited ? Math.max(...marks.edits) : -1;
+  const checks = marks.checks.filter((c) => c.at > lastEdit).sort((a, b) => a.at - b.at);
   const last = checks[checks.length - 1];
-  const passed = last ? !(last.error || last.checkFailed) : null;
+  const passed = last ? last.ok : null;
   const claimed = claimsVerification(acc.lastAssistantText);
 
   let resultTotal = 0;
@@ -584,12 +632,12 @@ export function windowFacts(acc, { root = '', checks: extraChecks = [] } = {}) {
     },
     prompt_quality: { ...promptFacts(acc.prompts), briefs: acc.briefs },
     skills: [...new Set([...acc.skillCalls, ...acc.skillDocReads])],
-    files_changed: acc.filesChanged.map((f) => relPath(f, root)),
+    files_changed: [...new Set([...acc.filesChanged.map((f) => relPath(f, root)), ...marks.files])],
     verification: {
       edited,
       after_last_edit: edited ? checks.length > 0 : null,
       passed,
-      commands: [...new Set(checks.map(checkOf))].slice(-3),
+      commands: [...new Set(checks.map((c) => c.command))].slice(-3),
       last_edit: edited ? lastEdit : null,
     },
     claims: {

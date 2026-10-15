@@ -278,7 +278,7 @@ folders; `.agents/rules/`, `.agents/workflows/`, `.gemini/` or `GEMINI.md` (Anti
 | `prompt-intake` (UserPromptSubmit) | a large or risky task prompt (auth, payments, data, production, secrets): asks for a brief (goal, scope, acceptance, assumptions, risks) before the first edit; a documentation task or a plan of three or more steps to build: names the cheaper agent to hand it to (doc-writer, implementer); silent otherwise | Claude Code |
 | `learning-signals` (admin) | user prompt (corrections), tool failure (friction); at session start only the live-session pointer | Claude Code |
 | `session-eval` (admin; PreCompact, SessionEnd, SessionStart) | at the end of every context window it records facts; the session-start summary line is opt-in (`workflow.sessionSummary`); blocks nothing | Claude Code |
-| `stop-check` (Stop) | when a turn ends with code changed after the last passing check, or with risky work (the intake's test) changed and no reviewer agent run on it: blocks once per edit | Claude Code |
+| `stop-check` (Stop) | when a turn ends with code changed after the last passing check, or with risky work (the intake's test) changed and no reviewer agent run on it: blocks once per edit — a subagent's edits and checks, read from its own transcript, count as the conversation's | Claude Code |
 | `run-hook` | the guard, the post-edit check, the branch note and the brief in other agents, as their events allow (§6) | Codex, Cursor, Copilot, Antigravity, Windsurf |
 | `context-budget` (admin; UserPromptSubmit) | when the context window passes each multiple of the budget: one note to the agent | Claude Code |
 | gates in CI + branch protection | before merge | everyone |
