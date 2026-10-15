@@ -26,6 +26,12 @@ added leave each clone at its next Claude Code session start, or with
   and no reviewer agent ran after the first edit. Measured on a real run: a Sonnet session read
   the intake's request for a review and finished without one; with the stop it ran the review
   on Opus, which led to two fixes. Fixing a review's findings never asks for a second review.
+- **Work handed to a subagent is checked and reviewed like work done in place.** `stop-check`
+  read only the main conversation, so a build the deliver skill hands to the implementer — or
+  any subagent that writes — left it no edit to see, and the stop asked for neither the check
+  nor the risky-work review. It now reads each subagent run's own transcript: the code it
+  changed counts, a check it ran after its own last edit counts as the check, and a run in the
+  background counts from the notification that it finished.
 - **A leaner AGENTS.md for every agent.** The managed block is about a quarter shorter (≈2.0k
   tokens instead of ≈2.6k on a typical web install), read on every prompt: the skills table is
   gone — a tool that loads skills already sees their descriptions, and the names stay in the

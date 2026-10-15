@@ -182,7 +182,11 @@ context window — its one-line summary at `SessionStart` is opt-in (`workflow.s
 the numbers are the admin's, read with `agent-setup evals`; `stop-check` blocks the end of a turn once when code changed after the
 last passing check — a command the permission system or a hook refused never counts as a
 check — or when risky work changed and no reviewer agent looked at it (rule 23b); `context-budget` notes the agent when a window passes a size budget. `gateCommands()`
-makes a project's own gate commands count as checks.
+makes a project's own gate commands count as checks. For `stop-check`, work a subagent did is
+work done in the conversation: it reads each run's own transcript, so code the implementer
+changed counts as an edit, a check the implementer ran after its own last edit counts as the
+check, and a run in the background counts from its completion notice. Without that, the build
+the deliver skill hands down escaped both asks.
 
 **23 · A risky request becomes a task before work starts.** `prompt-intake` (its rubric in
 `_prompt.mjs`, shared with the rows and the CLI) asks the agent to restate a large or risky

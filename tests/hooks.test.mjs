@@ -886,6 +886,50 @@ describe('stop-check', () => {
         const passing = transcriptOf([human('Fix it'), call([use('e1', 'Edit', { file_path: join(repo, 'a.mjs') })]), result('e1', 'ok'), call([use('b1', 'Bash', { command: 'make verify-all' })]), result('b1', 'ok')]);
         assert.equal(stop(repo, passing).stdout, '');
     });
+    test("a subagent's edits count as this thread's: the check and the review are asked for, its own check counts, a background run counts once finished", () => {
+        const repo = makeRepo();
+        mkdirSync(join(repo, '.claude', 'agents'), { recursive: true });
+        writeFileSync(join(repo, '.claude', 'agents', 'security-reviewer.md'), '---\nname: security-reviewer\n---\n');
+        const risky = 'Add a password reset to the login flow: a one-time token that expires after 15 minutes, with tests';
+        // The main thread, and each subagent run's own transcript beside it.
+        const session = (lines, runs) => {
+            const t = transcriptOf(lines);
+            const dir = join(t.replace(/\.jsonl$/, ''), 'subagents');
+            mkdirSync(dir, { recursive: true });
+            for (const [id, sub] of Object.entries(runs))
+                writeFileSync(join(dir, `agent-${id}.jsonl`), jsonl(sub));
+            return t;
+        };
+        const ran = (id, agentId, background = false) => ({
+            type: 'user',
+            message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: background ? 'Launched' : 'DONE' }] },
+            toolUseResult: background ? { isAsync: true, status: 'async_launched', agentId } : { status: 'completed', agentId, agentType: 'implementer' },
+        });
+        const test = (id) => [call([use(id, 'Bash', { command: 'npm test' })]), result(id, 'ok')];
+        const built = [call([use('w1', 'Write', { file_path: join(repo, 'src', 'reset.mjs'), content: 'x' })]), result('w1', 'ok')];
+        const delegated = [human(risky), call([use('a1', 'Agent', { subagent_type: 'implementer', prompt: 'Step 1' })]), ran('a1', 'im1')];
+        const both = decision(stop(repo, session(delegated, { im1: built })));
+        assert.equal(both.decision, 'block', "the edits are in the implementer's transcript, not this one");
+        assert.match(both.reason, /Code changed after the last check \(src\/reset\.mjs\)[\s\S]*have the security-reviewer agent review the diff/);
+        const tested = decision(stop(repo, session(delegated, { im1: [...built, ...test('b1')] })));
+        assert.match(tested.reason, /^This change touches auth and no reviewer has looked at it/, 'its own check after its last edit counts');
+        const reviewed = [...delegated, call([use('r1', 'Agent', { subagent_type: 'security-reviewer', prompt: 'review the diff' })]), result('r1', 'no findings')];
+        assert.equal(stop(repo, session(reviewed, { im1: [...built, ...test('b1')] })).stdout, '');
+        const memory = [call([use('w1', 'Write', { file_path: join(repo, '.claude', 'agent-memory', 'notes.md'), content: 'x' })]), result('w1', 'ok')];
+        assert.equal(stop(repo, session(delegated, { im1: memory })).stdout, '', 'prose and agent memory are not code');
+        const deep = join(repo, ...Array.from({ length: 12 }, (_, i) => `nested-folder-${i}`), '.claude', 'agent-memory', 'security-reviewer', 'MEMORY.md');
+        const deepMemory = [call([use('w1', 'Write', { file_path: deep, content: 'x' })]), result('w1', 'ok')];
+        assert.equal(stop(repo, session(delegated, { im1: deepMemory })).stdout, '', 'however long the path, its extension is read whole');
+        // In the background: nothing to check while it runs; its edits count from its notification.
+        const background = [human(risky), call([use('a1', 'Agent', { subagent_type: 'implementer', prompt: 'Step 1', run_in_background: true })]), ran('a1', 'im2', true)];
+        const notice = { type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>im2</task-id>\n<status>completed</status>\n</task-notification>' } };
+        assert.equal(stop(repo, session(background, { im2: built })).stdout, '', 'still running');
+        assert.match(decision(stop(repo, session([...background, notice], { im2: built }))).reason, /Code changed after the last check \(src\/reset\.mjs\)/);
+        const facts = (lines) => windowFacts(parseTranscript(jsonl(lines)), { root: repo, subagents: { im2: windowFacts(parseTranscript(jsonl(built)), { root: repo }) } });
+        assert.equal(facts([...background, ...test('b2'), notice]).verification.after_last_edit, false, 'a check run while it was still building covers nothing');
+        assert.equal(facts([...background, notice, ...test('b2')]).verification.after_last_edit, true);
+        assert.deepEqual(facts([...background, notice]).files_changed, ['src/reset.mjs']);
+    });
 });
 describe('context-budget', () => {
     let n = 0;

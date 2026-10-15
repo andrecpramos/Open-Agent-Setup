@@ -17,6 +17,12 @@
 // the stop is where it cannot be skipped. The same block carries both asks, so it still costs
 // one turn at most.
 //
+// Work handed to a subagent counts as work done here. The implementer (or any agent that
+// writes) edits in its own transcript, beside the session's; without reading it, a build the
+// deliver skill hands down would leave this thread with no edit, and the stop would ask for
+// neither the check nor the review. A check the subagent ran after its own last edit counts;
+// a background run counts from the notification that it finished.
+//
 // Once per edit: the block remembers the position of the last edit. When the
 // agent stops again without a newer edit (it ran the check, or explained in one
 // line why it cannot), the stop goes through. A block costs one turn at most and
@@ -32,10 +38,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gateCommands, loadConfig, readJson, readPayload, reviewerFor, logError } from './_config.mjs';
 import { intakeFor } from './_prompt.mjs';
-import { parseTranscript, windowFacts, windowSlice } from './_transcript.mjs';
+import { editMarks, parseTranscript, subagentFile, windowFacts, windowSlice } from './_transcript.mjs';
 
 const REVIEWERS = new Set(['code-reviewer', 'security-reviewer', 'architecture-reviewer']);
-const EDITS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
 // The entry point is at the BOTTOM of this file (see learning-signals.mjs for
 // the temporal-dead-zone bug that rule prevents).
@@ -44,6 +49,21 @@ function stateFile(sessionId) {
   const dir = join(tmpdir(), 'agent-setup');
   mkdirSync(dir, { recursive: true });
   return join(dir, `stop-check-${String(sessionId || 'session').replace(/[^\w-]/g, '')}.json`);
+}
+
+/** The facts of each subagent run in the window, from its own transcript, by agentId. A run whose file is gone is left out. */
+function subagentFacts(path, acc, opts) {
+  const out = {};
+  for (const t of acc.tools) {
+    const file = t.agentId ? subagentFile(path, t.agentId) : null;
+    if (!file || out[t.agentId] || !existsSync(file)) continue;
+    try {
+      out[t.agentId] = windowFacts(parseTranscript(readFileSync(file, 'utf8')), opts);
+    } catch (err) {
+      logError('stop-check', err);
+    }
+  }
+  return out;
 }
 
 async function run() {
@@ -62,7 +82,9 @@ async function run() {
   if (typeof payload.last_assistant_message === 'string' && payload.last_assistant_message.trim()) {
     acc.lastAssistantText = payload.last_assistant_message;
   }
-  const f = windowFacts(acc, { root, checks: gateCommands(cfg) });
+  const opts = { root, checks: gateCommands(cfg) };
+  opts.subagents = subagentFacts(path, acc, opts);
+  const f = windowFacts(acc, opts);
   const v = f.verification;
   if (!v.edited) return;
   const checked = v.after_last_edit && v.passed !== false;
@@ -71,8 +93,8 @@ async function run() {
   // change. Counted from the first edit, so fixing a review's findings does not ask for another.
   const risks = [...new Set(acc.prompts.flatMap((p) => intakeFor(p.text)?.risks ?? []))];
   const reviewer = risks.length ? reviewerFor(root, risks) : null;
-  const firstEdit = acc.tools.findIndex((t) => EDITS.has(t.name) && t.done && !t.error);
-  const reviewed = acc.tools.slice(firstEdit + 1).some((t) => t.agent && REVIEWERS.has(t.agent) && t.done && !t.denied);
+  const firstEdit = Math.min(...editMarks(acc, opts).edits);
+  const reviewed = acc.tools.some((t, i) => i > firstEdit && t.agent && REVIEWERS.has(t.agent) && t.done && !t.denied);
   const review = reviewer && !reviewed ? reviewer : null;
   if (checked && !review) return;
 

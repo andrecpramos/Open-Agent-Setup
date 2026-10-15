@@ -37,6 +37,10 @@ export interface ToolEntry {
   summary: string;
   /** A Task/Agent call's subagent type, without a plugin prefix; null for every other tool. */
   agent: string | null;
+  /** A Task/Agent call's run id, from its result: names the run's own transcript (subagentFile). */
+  agentId: string | null;
+  /** The run was launched in the background: its work is finished at its task notification (agentsDone). */
+  background: boolean;
   error: boolean;
   /** The tool_result has arrived. */
   done: boolean;
@@ -74,6 +78,8 @@ export interface LiveSession {
   agentCalls: string[];
   /** One entry per subagent run whose result named its agentId: where its transcript is, and the model it resolved to. */
   subagentRuns: SubagentRun[];
+  /** For each background run that has finished, by agentId: how many tools were recorded when its notification arrived. */
+  agentsDone: Record<string, number>;
   /** Assistant replies that restated the request as a brief (a Goal and an Acceptance line). */
   briefs: number;
   lastAssistantText: string;
@@ -146,8 +152,24 @@ export function claimsVerification(text: string): boolean;
 export function isCorrection(message: unknown): boolean;
 /** A text with a Goal and an Acceptance line: the request restated as a brief. */
 export function isBrief(text: unknown): boolean;
-/** `checks`: a project's own check commands (its gate commands), matched as substrings of shell commands. */
-export function windowFacts(acc: LiveSession, opts?: { root?: string; checks?: string[] }): WindowFacts;
+export interface FactsOptions {
+  root?: string;
+  /** A project's own check commands (its gate commands), matched as substrings of shell commands. */
+  checks?: string[];
+  /** The windowFacts of each subagent run's own transcript, by agentId: its code edits and checks count in this thread. */
+  subagents?: Record<string, Pick<WindowFacts, 'verification' | 'files_changed'>>;
+}
+/** A check on the tool-position line: a tool's index, or between two tools for a subagent's own check. */
+export interface CheckMark {
+  at: number;
+  command: string;
+  ok: boolean;
+}
+/** A subagent run's own transcript path, beside the session's; null for an id that is not one. */
+export function subagentFile(transcriptPath: string, agentId: string | null | undefined): string | null;
+/** Where the window's code edits and checks sit on its tool positions, subagents' included, and the files those subagents changed. */
+export function editMarks(acc: LiveSession, opts?: FactsOptions): { edits: number[]; checks: CheckMark[]; files: string[] };
+export function windowFacts(acc: LiveSession, opts?: FactsOptions): WindowFacts;
 
 /** A row of .claude/learnings/eval-windows.jsonl: the window's identity plus its facts. */
 export interface WindowRow extends WindowFacts {
