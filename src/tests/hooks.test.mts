@@ -272,6 +272,10 @@ describe('guard-git: bypassing hooks', () => {
     'git push --no-verify origin feature/x',
     'git -c core.hooksPath=/dev/null commit -m x',
     'git config core.hooksPath .nothing',
+    'git config --global core.hooksPath /dev/null',
+    'git config --unset core.hooksPath',
+    'git config set core.hooksPath .nothing',
+    'git config unset core.hooksPath',
     'HUSKY=0 git commit -m x',
     'SKIP_HOOKS=1 git commit -m x',
   ]) {
@@ -283,6 +287,11 @@ describe('guard-git: bypassing hooks', () => {
   test('allowed when the config opts out', () => {
     const r = makeRepo({ config: { ...TWO_TRUNK, guard: { denyNoVerify: false } } });
     assert.equal(guard(r, 'git commit --no-verify -m "x"'), null);
+  });
+  test('reading core.hooksPath is not changing it', () => {
+    for (const cmd of ['git config --get core.hooksPath', 'git config core.hooksPath', 'git config --get-all core.hooksPath', 'git config get core.hooksPath', 'git config --show-origin --get core.hooksPath']) {
+      assert.equal(guard(repo, cmd), null, cmd);
+    }
   });
   test('ordinary flags that merely contain n are not mistaken for -n', () => {
     assert.equal(guard(repo, 'git commit --amend --no-edit'), null);
@@ -325,6 +334,23 @@ describe('branch-check', () => {
     const r = runHook('branch-check.mjs', { hook_event_name: 'SessionStart', source: 'resume' }, { cwd: repo });
     assert.match(ctx(r), /0 ahead, 1 behind/);
     assert.match(ctx(r), /does NOT contain the tip/);
+  });
+
+  test("a fresh clone compares against origin/<branch>: silent while it contains it, speaks when behind, and only calls the config wrong when neither exists", () => {
+    const origin = makeRepo({ config: TWO_TRUNK });
+    gitIn(origin, 'branch', 'feature/x');
+    const clone = join(tempDir('as-clone-'), 'teammate');
+    gitIn(origin, 'clone', '-q', '--branch', 'feature/x', origin, clone);
+    writeConfig(clone, TWO_TRUNK);
+    const start = () => runHook('branch-check.mjs', { hook_event_name: 'SessionStart', source: 'startup' }, { cwd: clone });
+    assert.equal(start().stdout, '', "develop is only origin/develop here, and feature/x contains it: nothing to say");
+    writeFileSync(join(origin, 'a.txt'), 'a');
+    gitIn(origin, 'add', 'a.txt');
+    gitIn(origin, 'commit', '-q', '-m', 'a');
+    gitIn(clone, 'fetch', '-q');
+    assert.match(ctx(start()), /0 ahead, 1 behind 'origin\/develop'/);
+    writeConfig(clone, { ...TWO_TRUNK, branching: { ...TWO_TRUNK.branching, integration: 'dev' } });
+    assert.match(ctx(start()), /Branch 'dev' exists neither locally nor as 'origin\/dev'/);
   });
 
   test('handles detached HEAD', () => {

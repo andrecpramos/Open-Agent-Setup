@@ -5,12 +5,12 @@
       "id": 1,
       "name": "verify-provisional-config-against-ci",
       "prompt": "Run /sdlc-init. The repo has a provisional .agents/sdlc.config.json (trunk, main, no gates) and a .github/workflows/ci.yml that runs `pnpm -r lint`, `pnpm -r typecheck` and `pnpm -r test` on pull requests into develop. There is a develop branch.",
-      "expected_output": "Detects the two-trunk model from the develop branch and PR target, rewrites the config with production main and integration develop, adds the three gates with the commands copied exactly from CI (pnpm -r …) in cheapest-first order, marks blocking as unverified unless branch protection was checked, removes _provisional only after verification, fills the AGENTS.md commands, and reports each value as detected/asked/assumed with ranked gaps and one next action.",
+      "expected_output": "Detects the two-trunk model from the develop branch and PR target, rewrites the config with production main and integration develop, adds the three gates with the commands copied exactly from CI (pnpm -r …) in cheapest-first order, keeps the three CI gates blocking and records their enforcement on the host as unverified (partial in critical-infrastructure.md) unless branch protection was checked, removes _provisional only after verification, fills the AGENTS.md commands, and reports each value as detected/asked/assumed with ranked gaps and one next action.",
       "files": [],
       "expectations": [
         "Changes the branch model to two-trunk with develop as integration",
         "Gate commands match the CI run lines character for character (pnpm -r ...)",
-        "Does not claim gates are blocking without checking branch protection",
+        "Keeps the CI gates blocking: true, and does not claim the host enforces them without checking branch protection",
         "Reports values as detected, asked or assumed",
         "Ends the report with a single next action"
       ]
@@ -25,6 +25,18 @@
         "Creates .agents/overlays/frontend.md mentioning SWR and Mantine",
         "Does not edit files under .agents/skills/<kit skill>/",
         "Does not generate a project skill that duplicates the kit's gates, ship-it or handoff skills"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unverified-protection-keeps-gates-blocking",
+      "prompt": "Run /sdlc-init. The repo has no git remote yet. Its .github/workflows/ci.yml runs `npm run lint`, `npm test` and `npm run build` on pull requests into main, with no continue-on-error.",
+      "expected_output": "Adds the three gates with the CI commands, all blocking: true, because a failing check is a failure whether or not the host enforces it. Records that branch protection could not be checked (no remote) as an enforcement gap, partial in critical-infrastructure.md, and names protecting main on the host as the next action. Never marks a gate advisory because its enforcement is unverified.",
+      "files": [],
+      "expectations": [
+        "The lint, test and build gates are blocking: true",
+        "Says branch protection could not be verified, without claiming the host enforces the gates",
+        "Records the unverified enforcement as a gap (partial) rather than by making the gates advisory"
       ]
     }
   ]

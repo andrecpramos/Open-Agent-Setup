@@ -133,7 +133,7 @@
           "blocking": {
             "type": "boolean",
             "default": true,
-            "description": "false = reported but does not block a merge. Be honest here; an advisory gate marked blocking is how a green build starts meaning nothing."
+            "description": "false = advisory: a failure is reported but does not stop the work (run-gates still says MERGE-SAFE). Only for a check the project lets fail: CI continue-on-error or allow_failure, an audit everyone knows is red. Every pass/fail check CI runs is blocking, whether or not branch protection enforces it — that is a separate fact, recorded in critical-infrastructure.md."
           },
           "rule": {
             "type": "string",
