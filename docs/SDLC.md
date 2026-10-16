@@ -54,7 +54,7 @@ cuts from production.
 |---|---|---|
 | `denyForcePushShared` (on) | force-pushing or deleting the integration branch | it rewrites history every clone is built on |
 | `denyDiscardUncommitted` (on) | `reset --hard`, `checkout .`, `restore .` over uncommitted changes; `clean -f` over untracked files | an agent "cleaning up" destroys the user's work in progress, unrecoverably |
-| `denyNoVerify` (on) | `--no-verify`, `-c core.hooksPath=…`, `HUSKY=0`, `SKIP=…`, the git-hook escape variable | skipping a hook ships the problem it caught |
+| `denyNoVerify` (on) | `--no-verify`, `-c core.hooksPath=…`, changing `core.hooksPath` (reading it is how an agent checks the hooks are on, and passes), `HUSKY=0`, `SKIP=…`, the git-hook escape variable | skipping a hook ships the problem it caught |
 | `sharedTree` (extended) | also `git add -u` and `git stash` without paths | both sweep in another session's work |
 
 ## All hooks
@@ -82,7 +82,8 @@ timed out instead of reporting a generic failure.
 
 **11 · `branch-check` speaks only when the branch needs attention** — production, a detached
 HEAD, a feature branch behind the integration branch, a config naming a branch the clone does
-not have — and then states the situation precisely (the trunk model's wording, the gitflow
+not have, locally or as `origin/<branch>` (a fresh clone has only the branch it checked out, so
+the others are compared through their remote-tracking ref) — and then states the situation precisely (the trunk model's wording, the gitflow
 hotfix exception) with the contract in two lines. Restating a healthy contract at every new
 context window cost tokens in every session, while the agent already gets the branch and status
 at session start and `guard-git` denies what the contract forbids, naming the alternative. It

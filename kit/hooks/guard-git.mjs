@@ -170,7 +170,7 @@ function main() {
       const noVerify =
         args.includes('--no-verify') || (sub === 'commit' && args.some((t) => /^-[a-zA-Z]*n[a-zA-Z]*$/.test(t) && !t.startsWith('--')));
       if (noVerify && ['commit', 'push', 'merge', 'rebase', 'am', 'cherry-pick', 'revert'].includes(sub)) denyHookBypass(`\`git ${sub} --no-verify\``);
-      if (sub === 'config' && args.some((t) => /^core\.hookspath$/i.test(t))) denyHookBypass('Changing core.hooksPath');
+      if (sub === 'config' && changesHooksPath(args)) denyHookBypass('Changing core.hooksPath');
     }
 
     switch (sub) {
@@ -711,6 +711,20 @@ function positionalsOf(args) {
     out.push(t);
   }
   return out;
+}
+
+/**
+ * Does this `git config` change core.hooksPath? Reading it is how an agent checks that the hooks
+ * are on; only a change skips them: a value after the key, --unset, --replace-all or --add, or
+ * the `set` and `unset` subcommands.
+ */
+function changesHooksPath(args) {
+  const pos = positionalsOf(args);
+  const at = pos.findIndex((t) => /^core\.hookspath$/i.test(t));
+  if (at < 0) return false;
+  if (['set', 'unset'].includes(pos[0]) || args.some((t) => /^--(unset|unset-all|replace-all|add)$/.test(t))) return true;
+  if (['get', 'list'].includes(pos[0]) || args.some((t) => /^(--get|--get-all|--get-regexp|--get-urlmatch|-l|--list)$/.test(t))) return false;
+  return at < pos.length - 1;
 }
 
 /** Parse `git push` arguments into destination refs. */

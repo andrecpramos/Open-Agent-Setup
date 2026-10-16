@@ -32,6 +32,21 @@ added leave each clone at its next Claude Code session start, or with
   nor the risky-work review. It now reads each subagent run's own transcript: the code it
   changed counts, a check it ran after its own last edit counts as the check, and a run in the
   background counts from the notification that it finished.
+- **A red test is never MERGE-SAFE because branch protection could not be read.** `/sdlc-init`
+  marked every gate `blocking: false` when it could not verify branch protection (no remote, no
+  `gh`, no admin rights), and then `/gates` called a failing test MERGE-SAFE: the stop counted
+  it as a passing check and `ship-it` would commit over it. A gate CI runs is now blocking
+  whatever the host enforces; whether the host enforces it is recorded in
+  `critical-infrastructure.md`. `blocking: false` stays for checks the project lets fail. A
+  project configured before: set `blocking: true` on the gates CI runs, or run `/sdlc-init`
+  again.
+- **A teammate's fresh clone no longer gets a false branch warning.** A clone has only the
+  branch it checked out, so `branch-check` said the integration branch "does not exist locally"
+  and that the config was wrong — at every session start, in every team whose default branch is
+  not that branch. It now compares against `origin/<branch>`, and warns only when neither exists.
+- **Reading `core.hooksPath` is allowed.** `guard-git` denied `git config --get core.hooksPath`
+  as if it changed the setting, which stopped `/sdlc-init` and `/enforcement-audit` from checking
+  that the hooks are on. A value, `--unset` or `set` is still denied.
 - **A leaner AGENTS.md for every agent.** The managed block is about a quarter shorter (≈2.0k
   tokens instead of ≈2.6k on a typical web install), read on every prompt: the skills table is
   gone — a tool that loads skills already sees their descriptions, and the names stay in the

@@ -39,7 +39,11 @@ try {
   const rawBranch = git('rev-parse', '--abbrev-ref', 'HEAD') ?? 'unknown';
   const detached = rawBranch === 'HEAD';
   const branch = detached ? `(detached at ${git('rev-parse', '--short', 'HEAD') ?? '?'})` : rawBranch;
-  const hasBase = BASE ? git('rev-parse', '--verify', '--quiet', BASE) !== null : false;
+  // A fresh clone has only the branch it checked out; the others are origin/<name>. Compare
+  // against that rather than calling the config wrong.
+  const exists = (ref) => git('rev-parse', '--verify', '--quiet', ref) !== null;
+  const baseRef = !BASE ? null : exists(BASE) ? BASE : exists(`origin/${BASE}`) ? `origin/${BASE}` : null;
+  const hasBase = baseRef !== null;
 
   /** Commits on `a` not on `b`. */
   const countRange = (a, b) => {
@@ -60,17 +64,17 @@ try {
       `Before any edit, switch to '${BASE}' or cut a branch from it.`;
   } else if (rawBranch !== BASE && !hasBase) {
     situation =
-      `You are on '${branch}'. Branch '${BASE}' does not exist locally, so this\n` +
+      `You are on '${branch}'. Branch '${BASE}' exists neither locally nor as 'origin/${BASE}', so this\n` +
       `hook cannot compare against it. Fetch it, or correct 'branching.${model === 'trunk' ? 'production' : 'integration'}'\n` +
       `in .agents/sdlc.config.json — one of the two is wrong.`;
   } else if (rawBranch !== BASE) {
-    const ahead = countRange(rawBranch, BASE);
-    const behind = countRange(BASE, rawBranch);
+    const ahead = countRange(rawBranch, baseRef);
+    const behind = countRange(baseRef, rawBranch);
     if (behind !== null && behind > 0) {
       situation =
-        `You are on feature branch '${branch}' — ${ahead ?? '?'} ahead, ${behind} behind '${BASE}'.\n` +
-        `⚠ It does NOT contain the tip of '${BASE}' and will carry stale work on merge.\n` +
-        `   Rebase or merge '${BASE}' in before going further.`;
+        `You are on feature branch '${branch}' — ${ahead ?? '?'} ahead, ${behind} behind '${baseRef}'.\n` +
+        `⚠ It does NOT contain the tip of '${baseRef}' and will carry stale work on merge.\n` +
+        `   Rebase or merge '${baseRef}' in before going further.`;
     }
   }
 

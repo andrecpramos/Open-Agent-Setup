@@ -75,8 +75,16 @@ examples in `assets/examples/`. The file is protected — the user approves the 
 - **Every `gates[].command` is exactly what CI runs.** Not an equivalent, not a tidier
   version. If CI runs `pnpm -r test` and you write `pnpm test`, `/gates` passes locally and CI
   fails — and the first time that happens, people stop running `/gates`.
-- **`blocking` is a factual claim.** Can't verify branch protection? `"blocking": false`, and
-  say so. An advisory check marked blocking is how a green build starts meaning nothing.
+- **`blocking` says whether a failure stops the work.** Every pass/fail check CI runs is
+  `"blocking": true`: a failing test is a failure whether or not the git host enforces it.
+  `false` is for a check the project lets fail — `continue-on-error`, `allow_failure`, an audit
+  everyone knows is red. An advisory check marked blocking is how people stop running `/gates`;
+  a real check marked advisory is how a red test gets committed, because `/gates` then says
+  MERGE-SAFE.
+- **Whether the host enforces a gate is a separate fact.** Check the branch protection or
+  rulesets that require it, and record the result in `critical-infrastructure.md`: `enforced`,
+  or `partial` when nothing requires it or you could not check (no remote, no `gh`, a 403).
+  Never turn a gate advisory because its enforcement is unverified.
 - Order `gates` cheapest first. Keep `postEdit` commands under a second.
 - Remove `_provisional` only once branches and gates are verified.
 
