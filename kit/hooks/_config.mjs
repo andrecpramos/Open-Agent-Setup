@@ -77,8 +77,20 @@ const DEFAULTS = {
     extraDeny: [],
   },
   postEdit: [],
-  workflow: { sessionSummary: false, verifyBeforeStop: true, contextWarnTokens: 150000, promptIntake: true, retroEvery: 20, askBranch: false },
+  workflow: {
+    sessionSummary: false,
+    verifyBeforeStop: true,
+    contextWarnTokens: 150000,
+    promptIntake: true,
+    retroEvery: 20,
+    askBranch: false,
+    pullRequests: 'on-request',
+    askMerge: false,
+  },
 };
+
+/** Does this repository run every change as its own pull request (`workflow.pullRequests: "per-task"`)? */
+export const prPerTask = (cfg) => cfg?.workflow?.pullRequests === 'per-task';
 
 // Where the config may live, in priority order. `.agents/` is the home every agent reads;
 // `.claude/` is where installs before 2.0 kept it (until `update` moves it), and a legacy

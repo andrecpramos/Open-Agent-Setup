@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // SessionStart: says something about the branch only when it needs attention — standing on
-// production, a detached HEAD, a feature branch that no longer contains the integration
-// branch, or a config that names a branch this clone does not have — and then states the
-// branching contract with the live git facts attached.
+// production, a detached HEAD, a branch whose remote branch is gone (its pull request merged or
+// closed: new work there would start from a finished branch), a feature branch that no longer
+// contains the integration branch, or a config that names a branch this clone does not have —
+// and then states the branching contract with the live git facts attached.
 //
 // Why silent otherwise: the agent already gets the current branch and status at session
 // start, and guard-git denies the commands the contract exists to prevent, naming the
@@ -62,6 +63,12 @@ try {
     situation =
       `You are on '${PROD}' — PRODUCTION. Do not commit here.\n` +
       `Before any edit, switch to '${BASE}' or cut a branch from it.`;
+  } else if (rawBranch !== BASE && git('for-each-ref', '--format=%(upstream:track)', `refs/heads/${rawBranch}`) === '[gone]') {
+    // Known after a fetch with --prune; no network here.
+    situation =
+      `You are on '${branch}', whose branch on the remote is gone — its pull request was most likely merged or closed.\n` +
+      `Before new work: switch to '${BASE}' and pull. Delete '${branch}' once \`gh pr view ${branch}\` shows it\n` +
+      `merged or closed (\`git branch -D\`: after a squash merge git calls it "not fully merged").`;
   } else if (rawBranch !== BASE && !hasBase) {
     situation =
       `You are on '${branch}'. Branch '${BASE}' exists neither locally nor as 'origin/${BASE}', so this\n` +
