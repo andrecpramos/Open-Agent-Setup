@@ -99,6 +99,8 @@ gh release create vx.y.z --title "x.y.z" --notes-file <the changelog section, fo
 
 Never merge the promotion pull request with the button or `gh pr merge`: squash and rebase both
 rewrite the commits, so `main` and `develop` would part ways and the next promotion would
-conflict. A fast-forward gives `main` develop's commits unchanged. Never delete `develop`.
+conflict. A fast-forward gives `main` develop's commits unchanged. Never delete `develop`: its
+protection refuses deletion, and that is also what keeps the repository's delete-on-merge
+setting off it, since GitHub counts the promotion pull request as merged.
 
 The tag is what adopters update to.
