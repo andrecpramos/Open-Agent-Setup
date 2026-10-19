@@ -217,6 +217,36 @@ describe('guard-git: model and config variations', () => {
         assert.equal(guard(r, 'git push origin main'), null);
     });
 });
+describe('guard-git: a pull request per task', () => {
+    const PER_TASK = { ...TWO_TRUNK, branching: { ...TWO_TRUNK.branching, featurePrefix: 'feat/' }, workflow: { pullRequests: 'per-task' } };
+    test('nothing is committed on, or pushed to, the integration branch; the denial names the branch to cut', () => {
+        const repo = makeRepo({ config: PER_TASK });
+        const commit = guard(repo, 'git commit -m "fix: typo"');
+        assert.match(commit, /runs every change as its own pull request \(workflow\.pullRequests: per-task\), so nothing is committed on 'develop' directly/);
+        assert.match(commit, /Instead: `git switch -c feat\/<short-name>` — your uncommitted changes come with you/);
+        assert.match(guard(repo, 'git push'), /only through a pull request[\s\S]*bare `git push` from 'develop' pushes 'develop'/);
+        assert.ok(guard(repo, 'git push origin develop'));
+    });
+    test('a feature branch works as usual, including one cut in the same command', () => {
+        const repo = makeRepo({ config: PER_TASK });
+        assert.equal(guard(repo, 'git switch -c feat/x && git commit -m "feat: x"'), null);
+        gitIn(repo, 'checkout', '-q', '-b', 'feat/y');
+        for (const cmd of ['git commit --allow-empty -m "chore: start y"', 'git push -u origin HEAD', 'gh pr create --draft --base develop --title y', 'gh pr merge 7 --squash --delete-branch', 'git branch -D feat/x']) {
+            assert.equal(guard(repo, cmd), null, cmd);
+        }
+    });
+    test('trunk: the trunk is the branch nothing is committed on, even where production may move', () => {
+        const r = makeRepo({ branch: 'main', branches: [], config: { version: 1, branching: { model: 'trunk', production: 'main', releaseOnRequestOnly: false }, workflow: { pullRequests: 'per-task' }, gates: [] } });
+        assert.match(guard(r, 'git commit -m "fix: typo"'), /nothing is committed on 'main' directly/);
+        assert.match(guard(r, 'git push origin main'), /only through a pull request/);
+        assert.equal(guard(r, 'gh pr create --draft --base main --title x'), null);
+    });
+    test('off by default: commits and pushes on the integration branch pass, as before', () => {
+        const repo = makeRepo({ config: TWO_TRUNK });
+        assert.equal(guard(repo, 'git commit -m "fix: typo"'), null);
+        assert.equal(guard(repo, 'git push origin develop'), null);
+    });
+});
 // ---------------------------------------------------------------------------
 describe('guard-git: bypassing hooks', () => {
     const repo = makeRepo({ config: TWO_TRUNK });
@@ -232,6 +262,8 @@ describe('guard-git: bypassing hooks', () => {
         'git config unset core.hooksPath',
         'HUSKY=0 git commit -m x',
         'SKIP_HOOKS=1 git commit -m x',
+        'gh pr merge 12 --admin --squash',
+        'gh pr merge 12 --squash --admin=true',
     ]) {
         test(`denies: ${cmd}`, () => assert.ok(guard(repo, cmd)));
     }
@@ -241,6 +273,13 @@ describe('guard-git: bypassing hooks', () => {
     test('allowed when the config opts out', () => {
         const r = makeRepo({ config: { ...TWO_TRUNK, guard: { denyNoVerify: false } } });
         assert.equal(guard(r, 'git commit --no-verify -m "x"'), null);
+        assert.equal(guard(r, 'gh pr merge 12 --admin'), null);
+    });
+    test('a merge through the branch protection passes, and the --admin denial names the way through it', () => {
+        for (const cmd of ['gh pr merge 12 --squash --delete-branch', 'gh pr merge --auto --squash --delete-branch', 'gh pr checks 12 --watch', 'gh pr merge 12 --squash --admin=false']) {
+            assert.equal(guard(repo, cmd), null, cmd);
+        }
+        assert.match(guard(repo, 'gh pr merge 12 --admin'), /merges past the branch protection[\s\S]*Instead: wait for the checks \(`gh pr checks --watch`\)/);
     });
     test('reading core.hooksPath is not changing it', () => {
         for (const cmd of ['git config --get core.hooksPath', 'git config core.hooksPath', 'git config --get-all core.hooksPath', 'git config get core.hooksPath', 'git config --show-origin --get core.hooksPath']) {
@@ -300,6 +339,21 @@ describe('branch-check', () => {
         assert.match(ctx(start()), /0 ahead, 1 behind 'origin\/develop'/);
         writeConfig(clone, { ...TWO_TRUNK, branching: { ...TWO_TRUNK.branching, integration: 'dev' } });
         assert.match(ctx(start()), /Branch 'dev' exists neither locally nor as 'origin\/dev'/);
+    });
+    test('a branch whose remote branch is gone: its pull request was merged or closed, so new work does not start there', () => {
+        const origin = makeRepo({ config: TWO_TRUNK });
+        gitIn(origin, 'branch', 'feature/done');
+        const clone = join(tempDir('as-clone-'), 'dev');
+        gitIn(origin, 'clone', '-q', origin, clone);
+        writeConfig(clone, TWO_TRUNK);
+        gitIn(clone, 'checkout', '-q', 'feature/done');
+        const start = () => runHook('branch-check.mjs', { hook_event_name: 'SessionStart', source: 'startup' }, { cwd: clone });
+        assert.equal(start().stdout, '', 'a branch whose remote branch is still there: nothing to say');
+        gitIn(origin, 'branch', '-D', 'feature/done');
+        gitIn(clone, 'fetch', '-q', '--prune');
+        const note = ctx(start());
+        assert.match(note, /You are on 'feature\/done', whose branch on the remote is gone — its pull request was most likely merged or closed/);
+        assert.match(note, /switch to 'develop' and pull\. Delete 'feature\/done' once `gh pr view feature\/done` shows it/);
     });
     test('handles detached HEAD', () => {
         const repo = makeRepo({ config: TWO_TRUNK });
@@ -1072,6 +1126,26 @@ describe('prompt-intake', () => {
         assert.match(note, /have the security-reviewer agent check the change before you call it done — the deliver skill has the steps/);
         writeConfig(repo, { workflow: { promptIntake: false } });
         assert.equal(ask(repo, 'Add Stripe subscriptions with a billing page and webhooks for renewals').stdout, '');
+    });
+    test('a pull request per task: a task on the integration branch is told the cycle; a question, a feature branch or the default mode hear nothing', () => {
+        const repo = makeRepo({ config: { ...TWO_TRUNK, workflow: { pullRequests: 'per-task' } } });
+        const task = 'fix the footer link on the pricing page';
+        const note = out(ask(repo, task)).note;
+        assert.match(note, /^PR — This repository runs every change as its own pull request\. If this request changes files: before your first edit, cut feature\/<area>-<short-name> from 'develop', commit the brief and open a draft PR into 'develop'\./);
+        assert.match(note, /mark it ready, merge it once its checks are green, and delete the branch — the ship-it skill, "A pull request per task", has the commands\. No need to mention this note\.$/);
+        assert.equal(ask(repo, 'How does the footer get its links?').stdout, '', 'a question');
+        const risky = out(ask(repo, 'Add Stripe subscriptions with a billing page and webhooks for renewals')).note;
+        assert.match(risky, /^INTAKE — It touches payments[\s\S]*\nPR — [\s\S]*\nPlan before editing/, 'one note: the brief, then the cycle');
+        writeConfig(repo, { ...TWO_TRUNK, workflow: { pullRequests: 'per-task', askMerge: true, promptIntake: false } });
+        const asked = out(ask(repo, 'Add Stripe subscriptions with a billing page and webhooks for renewals')).note;
+        assert.match(asked, /^PR — /, 'its own switch: said with promptIntake off');
+        assert.doesNotMatch(asked, /INTAKE/);
+        assert.match(asked, /mark it ready, ask the user to merge it, and delete the branch/);
+        gitIn(repo, 'checkout', '-q', '-b', 'feature/footer');
+        assert.equal(ask(repo, task).stdout, '', 'on a feature branch the cycle is under way');
+        gitIn(repo, 'checkout', '-q', 'develop');
+        writeConfig(repo, TWO_TRUNK);
+        assert.equal(ask(repo, task).stdout, '', 'on-request, the default: nothing');
     });
     test('never holds an edit back', () => {
         const repo = makeRepo();

@@ -54,6 +54,20 @@
         "Runs the tests after the last edit and reports the result",
         "Requests a code review or security review before reporting done"
       ]
+    },
+    {
+      "id": 5,
+      "name": "pr-per-task-cycle",
+      "prompt": "The date filter on the reports page ignores the end date. Fix it. (.agents/sdlc.config.json sets workflow.pullRequests to \"per-task\"; integration branch develop; you are on develop with a clean tree.)",
+      "expected_output": "Briefs the fix in a line or two, then opens the cycle before the first edit: a feature branch from develop and a draft pull request carrying the brief. Fixes the filter with a test for the end date, runs the checks after the last edit, then lands the pull request (ready, checks green, squash merge, branch deleted, back on develop) and reports with the PR URL.",
+      "files": [],
+      "expectations": [
+        "Opens a draft pull request on a new branch before the first edit",
+        "Adds or updates a test that covers the end date",
+        "Runs the checks after the last edit",
+        "Merges the pull request and deletes the branch, ending on develop",
+        "The report includes the PR URL"
+      ]
     }
   ]
 }

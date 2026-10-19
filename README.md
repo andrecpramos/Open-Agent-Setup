@@ -147,7 +147,10 @@ Work the way you already do. A few habits get the most out of it; the full page 
    line, or say go.
 3. **Read the report.** It says what was checked, and what could not be.
 4. **Say "ship it"** when you want a commit and a pull request. Nothing is pushed before that,
-   and production only changes when someone asks for a release.
+   and production only changes when someone asks for a release. A team can instead run a pull
+   request per task: each change opens a draft PR when work starts, so everyone sees what is in
+   flight, and the agent merges it when the checks are green and deletes the branch
+   (`workflow.pullRequests` in `.agents/sdlc.config.json`; `/sdlc-init` asks).
 
 | You might see | It means |
 |---|---|
@@ -315,10 +318,10 @@ They stay silent until something needs doing.
 
 | Hook | Does |
 |---|---|
-| `guard-git` | blocks writes to production, force-pushes to shared branches, commands that throw away uncommitted work, and skipping git's own checks, and names the safer alternative each time. Pull requests are the normal path and pass |
+| `guard-git` | blocks writes to production, force-pushes to shared branches, commands that throw away uncommitted work, and skipping git's own checks or the pull request's (`gh pr merge --admin`), and names the safer alternative each time. Pull requests are the normal path and pass; with a pull request per task, commits on the integration branch do not |
 | `check-gates` | right after an edit, runs the quick check that edit could have broken |
 | `stop-check` | when the agent is about to finish with code changed since the last passing check, asks once for the check — and for risky work (login, payments, data, secrets, production) that no reviewer has looked at, for the review too |
-| `prompt-intake` | for a big or risky request, asks for the brief before the first edit; for a docs task or a plan to build, names the cheaper helper to hand it to; everything else passes silently |
+| `prompt-intake` | for a big or risky request, asks for the brief before the first edit; for a docs task or a plan to build, names the cheaper helper to hand it to; with a pull request per task, reminds the agent to open the draft PR first; everything else passes silently |
 | `branch-check` | at the start of a session, speaks up only when the branch needs attention |
 
 The hooks stop the agent early, but the real safety net for production is **branch protection

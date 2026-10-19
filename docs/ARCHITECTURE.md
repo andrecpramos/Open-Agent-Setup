@@ -272,10 +272,10 @@ folders; `.agents/rules/`, `.agents/workflows/`, `.gemini/` or `GEMINI.md` (Anti
 
 | Layer | Fires | Covers |
 |---|---|---|
-| `branch-check` (SessionStart) | a new context window whose branch needs attention (production, detached, stale, a wrong config) | Claude Code |
+| `branch-check` (SessionStart) | a new context window whose branch needs attention (production, detached, its PR merged, stale, a wrong config) | Claude Code |
 | `guard-git` (PreToolUse) | before a shell command runs | Claude Code (Bash, PowerShell) |
 | `check-gates` (PostToolUse) | after an edit to a configured path | Claude Code |
-| `prompt-intake` (UserPromptSubmit) | a large or risky task prompt (auth, payments, data, production, secrets): asks for a brief (goal, scope, acceptance, assumptions, risks) before the first edit; a documentation task or a plan of three or more steps to build: names the cheaper agent to hand it to (doc-writer, implementer); silent otherwise | Claude Code |
+| `prompt-intake` (UserPromptSubmit) | a large or risky task prompt (auth, payments, data, production, secrets): asks for a brief (goal, scope, acceptance, assumptions, risks) before the first edit; a documentation task or a plan of three or more steps to build: names the cheaper agent to hand it to (doc-writer, implementer); with a pull request per task, a task on the integration branch: names the cycle (draft PR first, land it at the end); silent otherwise | Claude Code |
 | `learning-signals` (admin) | user prompt (corrections), tool failure (friction); at session start only the live-session pointer | Claude Code |
 | `session-eval` (admin; PreCompact, SessionEnd, SessionStart) | at the end of every context window it records facts; the session-start summary line is opt-in (`workflow.sessionSummary`); blocks nothing | Claude Code |
 | `stop-check` (Stop) | when a turn ends with code changed after the last passing check, or with risky work (the intake's test) changed and no reviewer agent run on it: blocks once per edit — a subagent's edits and checks, read from its own transcript, count as the conversation's | Claude Code |

@@ -17,12 +17,18 @@
 // after a briefed request refines it and gets no second note. The scoring lives in _prompt.mjs,
 // shared with the session-eval rows. Off with `workflow.promptIntake: false`
 // in .agents/sdlc.config.json. Never throws; always exits 0.
+//
+// Where the team runs a pull request per task (`workflow.pullRequests: "per-task"`), a task
+// that arrives while the agent stands on the integration branch gets a PR line: open the draft
+// before the first edit, land it at the end. Said at the prompt because the cycle starts before
+// the first edit, and only there: on a feature branch it is already under way. Its own switch,
+// not promptIntake's.
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { hasAgent, loadConfig, readJson, readPayload, reviewerFor, logError } from './_config.mjs';
-import { intakeFor, routeFor } from './_prompt.mjs';
+import { currentBranch, hasAgent, loadConfig, prPerTask, readJson, readPayload, reviewerFor, logError } from './_config.mjs';
+import { classifyPrompt, intakeFor, routeFor } from './_prompt.mjs';
 
 // The entry point is at the BOTTOM of this file (see learning-signals.mjs for
 // the temporal-dead-zone bug that rule prevents).
@@ -56,14 +62,32 @@ function routeLine(root, prompt) {
   return route && hasAgent(root, route[0]) ? route[1] : null;
 }
 
-function onPrompt(payload, root, state, seen) {
+/**
+ * The pull-request-per-task line for a task that would otherwise land on the integration branch
+ * (standing on it, on production, or detached), or null.
+ */
+function prLine(cfg, prompt) {
+  if (!prPerTask(cfg) || classifyPrompt(prompt).kind !== 'task') return null;
+  const { integration: BASE, production: PROD, featurePrefix } = cfg.branching;
+  const here = currentBranch();
+  if (here && here !== BASE && here !== PROD) return null;
+  const land = cfg.workflow?.askMerge === true ? 'ask the user to merge it' : 'merge it once its checks are green';
+  return (
+    `PR — This repository runs every change as its own pull request. If this request changes files: before your first edit, cut ` +
+    `${featurePrefix || 'feature/'}<area>-<short-name> from '${BASE}', commit the brief and open a draft PR into '${BASE}'. ` +
+    `When the work is verified and reviewed: mark it ready, ${land}, and delete the branch — the ship-it skill, "A pull request per task", has the commands.`
+  );
+}
+
+function onPrompt(payload, root, state, seen, { intake, pr }) {
   const s = { prompts: Number(seen.prompts ?? 0) + 1, lastIntake: Number(seen.lastIntake ?? -99) };
-  const need = intakeFor(payload.prompt);
+  const need = intake ? intakeFor(payload.prompt) : null;
   const refining = need && s.prompts - s.lastIntake <= 2 && need.words < 25 && !need.risks.length;
-  const route = routeLine(root, payload.prompt);
+  const route = intake ? routeLine(root, payload.prompt) : null;
   if (!need || refining) {
     writeFileSync(state, `${JSON.stringify(s)}\n`);
-    if (route) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: `${route} No need to mention this note.` } }));
+    const lines = [route, pr].filter(Boolean);
+    if (lines.length) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: `${lines.join('\n')} No need to mention this note.` } }));
     return;
   }
   s.lastIntake = s.prompts;
@@ -77,6 +101,7 @@ function onPrompt(payload, root, state, seen) {
   ];
   if (need.missing.length) lines.push(`It does not say ${need.missing.map((id) => GAPS[id]).join(', ')}: fill those in from the code, as assumptions.`);
   const deliver = existsSync(join(root, '.agents', 'skills', 'deliver', 'SKILL.md')) ? ' — the deliver skill has the steps' : '';
+  if (pr) lines.push(pr);
   lines.push(`Plan before editing, and have ${reviewOf(root, need.risks)} check the change before you call it done${deliver}. No need to mention this note.`);
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: lines.join('\n') } }));
 }
@@ -85,10 +110,12 @@ async function run() {
   const payload = await readPayload();
   if (payload.hook_event_name !== 'UserPromptSubmit') return;
   const cfg = loadConfig();
-  if (cfg.workflow?.promptIntake === false) return;
+  const intake = cfg.workflow?.promptIntake !== false;
+  const pr = prLine(cfg, payload.prompt);
+  if (!intake && !pr) return;
   const root = process.env.CLAUDE_PROJECT_DIR || cfg.root;
   const state = stateFile(payload.session_id);
-  onPrompt(payload, root, state, readJson(state) ?? {});
+  onPrompt(payload, root, state, readJson(state) ?? {}, { intake, pr });
 }
 
 // ---------------------------------------------------------------------------

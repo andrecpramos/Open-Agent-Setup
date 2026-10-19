@@ -7,7 +7,9 @@ Size the work first. A small fix in one place: read the code, make the change, r
 that covers it, report. Anything larger, vague, or touching auth, payments, data or production:
 follow the `deliver` skill (`.agents/skills/deliver/SKILL.md`) — a five-line brief, a plan,
 small verified steps, a review, a report against the acceptance line. Commit or open a PR only
-when asked.
+when asked — unless `workflow.pullRequests` in `.agents/sdlc.config.json` is `per-task`: then
+every change is its own PR, a draft before the first edit, merged and its branch deleted at the
+end (`ship-it`).
 
 ### Who does what, on which model
 

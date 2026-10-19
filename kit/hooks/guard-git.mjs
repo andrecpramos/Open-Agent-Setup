@@ -26,12 +26,16 @@
 //   · New, config-gated rules: commits and merges while standing on production,
 //     force-pushes to the integration branch, deleting shared branches, and
 //     commands that discard uncommitted work the agent did not write.
+//   · A pull request per task (`workflow.pullRequests: "per-task"`): nothing is
+//     committed on, or pushed to, the integration branch directly. And never
+//     `gh pr merge --admin`, which merges past the host's required checks: an
+//     agent that merges its own pull request does it through them.
 //
 // Contract with the harness: exit 0 and print a permissionDecision of "deny"
 // with a reason, or print nothing to allow. Never throw. Configured entirely by
 // .agents/sdlc.config.json.
 
-import { loadConfig, git, currentBranch, refMatches, logError } from './_config.mjs';
+import { loadConfig, git, currentBranch, refMatches, prPerTask, logError } from './_config.mjs';
 
 // ---------------------------------------------------------------------------
 // Payload
@@ -68,6 +72,7 @@ function main() {
 
   const productionWritesDenied = g.denyProductionWrites !== false && b.releaseOnRequestOnly !== false;
   const protectedPatterns = [PROD, ...b.protectedRefs].filter(Boolean);
+  const perTask = prPerTask(cfg);
 
   // Lazily-resolved repository facts. Each costs a git call, so only pay for the
   // ones a given command actually needs.
@@ -262,6 +267,12 @@ function main() {
             `git switch ${BASE} (or cut a branch from it), then commit there.`,
           );
         }
+        if (perTask && here && normalizeRef(here) === BASE) {
+          deny(
+            `This repository runs every change as its own pull request (workflow.pullRequests: per-task), so nothing is committed on '${BASE}' directly.`,
+            `\`git switch -c ${b.featurePrefix || 'feature/'}<short-name>\` — your uncommitted changes come with you — then commit there and open the draft PR (the ship-it skill, "A pull request per task").`,
+          );
+        }
         return;
       }
 
@@ -288,6 +299,13 @@ function main() {
               `'${BASE}' is the shared integration branch. ${t.delete ? 'Deleting' : 'Force-pushing'} it rewrites ` +
                 'history every other clone and session is built on.',
               'push a new commit instead (revert, or fix forward). If history really must change, ask the user to do it.',
+            );
+          }
+          if (perTask && normalizeRef(dst) === BASE) {
+            deny(
+              `Changes reach '${BASE}' only through a pull request in this repository (workflow.pullRequests: per-task).` +
+                (t.implicit ? ` (A bare \`git push\` from '${here}' pushes '${here}'.)` : ''),
+              'push the feature branch (`git push -u origin HEAD` from it) and open or update its pull request.',
             );
           }
         }
@@ -382,6 +400,13 @@ function main() {
   };
 
   const onGh = (args) => {
+    // gh pr merge --admin: the host's required checks and reviews are its hooks.
+    if (args[0] === 'pr' && args[1] === 'merge' && g.denyNoVerify !== false && args.some((t) => t === '--admin' || /^--admin=(?!false$)/.test(t))) {
+      deny(
+        '`gh pr merge --admin` merges past the branch protection: its required checks and reviews. Bypassing them is not a fix.',
+        'wait for the checks (`gh pr checks --watch`) and fix what fails, then merge, or queue it with `gh pr merge --auto`. A required review is a teammate\'s to give: ask for it.',
+      );
+    }
     // gh pr create --base <protected>. On a trunk, a pull request into it is the normal path
     // (the host's required checks and reviews gate the merge): only a separate production
     // branch is a release.

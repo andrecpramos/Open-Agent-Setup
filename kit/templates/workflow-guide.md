@@ -13,7 +13,9 @@ any other coding agent. One page; the details live in `AGENTS.md` and `.agents/s
    production or secrets.
 4. **Read the report**: what is proven, with evidence, and what could not be checked.
 5. **Say "ship it"** when you want a commit and a pull request. Nothing is pushed before that,
-   and production only moves when you ask for a release.
+   and production only moves when you ask for a release. Where the team runs a pull request per
+   task, every change opens its own draft PR as work starts and is merged, branch deleted, when
+   its checks are green.
 
 ## First time in this repository
 
@@ -51,7 +53,8 @@ Don't touch <what is out of scope>.
 | a **brief** before any change (Goal · Scope · Acceptance…) | the request was large or risky, so it was restated for you to check | correct it in one line, or carry on |
 | a command **denied** by a hook | a protected branch, a force-push or discarding uncommitted work | nothing: the agent takes the alternative the denial names |
 | the agent runs the tests before it finishes | it changed code after the last check | nothing: it reports the result |
-| a note about the **branch** at session start | you are on production, detached, or behind the integration branch | let the agent switch or update, or tell it where to work |
+| a note about the **branch** at session start | you are on production, detached, behind the integration branch, or on a branch whose PR was merged | let the agent switch or update, or tell it where to work |
+| a **draft pull request** as soon as work starts | the team runs a pull request per task (`workflow.pullRequests`), so everyone sees what is in flight | follow it or comment on it; the agent merges it when the checks are green and deletes the branch |
 
 ## Which model, and what it costs
 
@@ -103,3 +106,5 @@ when the work matches, and can be called by name.
 requests), `verifyBeforeStop` (the check before the agent finishes), `contextWarnTokens`. Turn
 one off only with a reason, and write the reason in `.agents/docs/lessons.md`. The agent picks
 the branch to work on by itself and names it; `askBranch: true` makes it ask you first.
+`pullRequests: "per-task"` turns on a pull request per task; with it, `askMerge: true` makes the
+agent ask you before it merges.

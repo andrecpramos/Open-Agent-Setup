@@ -186,7 +186,7 @@
         "denyCommitOnProduction": { "type": "boolean", "default": true, "description": "two-trunk/gitflow: deny commits while standing on a protected branch." },
         "denyForcePushShared": { "type": "boolean", "default": true, "description": "Deny force-pushing or deleting the integration branch." },
         "denyDiscardUncommitted": { "type": "boolean", "default": true, "description": "Deny reset --hard, checkout/restore of the whole tree, and clean -f when they would destroy uncommitted or untracked work." },
-        "denyNoVerify": { "type": "boolean", "default": true, "description": "Deny --no-verify on commit and push, and setting the git-hook escape variable — hooks exist to catch problems; the fix is the cause, not the hook." },
+        "denyNoVerify": { "type": "boolean", "default": true, "description": "Deny --no-verify on commit and push, setting the git-hook escape variable, and gh pr merge --admin (which merges past the branch protection's required checks and reviews) — hooks and checks exist to catch problems; the fix is the cause, not the hook." },
         "extraDeny": {
           "type": "array",
           "description": "Repo-specific denials.",
@@ -231,7 +231,9 @@
         "promptIntake": { "type": "boolean", "default": true, "description": "prompt-intake asks the agent to restate a large or risky task prompt (auth, payments, data, production, secrets) as a brief (goal, scope, acceptance, assumptions, risks) before its first edit." },
         "promptCoach": { "type": "boolean", "deprecated": true, "description": "Retired in 3.0: prompt-intake no longer coaches the developer. Has no effect; delete it." },
         "retroEvery": { "type": "integer", "minimum": 0, "default": 20, "description": "agent-setup report lists a retro as due after this many recorded context windows without one. 0 turns it off." },
-        "askBranch": { "type": "boolean", "default": false, "description": "branch-check tells the agent to ask the user which branch to work on before its first edit. Off by default: the agent decides (small work on the integration branch, larger work on a new feature branch) and names the branch in its brief." }
+        "askBranch": { "type": "boolean", "default": false, "description": "branch-check tells the agent to ask the user which branch to work on before its first edit. Off by default: the agent decides (small work on the integration branch, larger work on a new feature branch) and names the branch in its brief." },
+        "pullRequests": { "enum": ["on-request", "per-task"], "default": "on-request", "description": "on-request: the agent commits and opens a pull request only when asked. per-task: every change is its own pull request — a branch and a draft PR before the first edit, so the team sees what is being worked on; verified and reviewed; merged when green; its branch deleted (the ship-it skill, 'A pull request per task'). prompt-intake names the cycle when a task arrives on the integration branch, and guard-git denies commits on and pushes to it. Needs the gh CLI (or the host's) and a host that squash-merges and deletes merged branches; /sdlc-init checks both." },
+        "askMerge": { "type": "boolean", "default": false, "description": "per-task only: the agent asks the user before merging its pull request. Off by default: it merges once the gates, the review and the PR's checks are green, through the host's rules (approvals the host requires still hold it). Turn on where a merge deploys — a trunk that ships on every merge." }
       }
     },
 
