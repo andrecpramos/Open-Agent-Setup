@@ -220,6 +220,10 @@ added leave each clone at its next Claude Code session start, or with
 - **A new home:** https://github.com/andrecpramos/Open-Agent-Setup. Its history starts fresh,
   so `git pull` in an older clone of the kit does not follow it: clone it again, and run
   `update` on your projects from the new clone.
+- **`main` is the released kit; work lands on `develop` first.** Every change goes through a
+  pull request into `develop`, and `main` — what `git clone`, `git pull` and
+  `npx github:andrecpramos/Open-Agent-Setup` give you — moves only when `develop` is promoted to
+  it at a release. CI fails a pull request into `main` from any other branch.
 - **Self-contained examples.** The `sdlc-init` monorepo example config, the `self-improve`
   routing examples and the `enforcement-audit` reference use fresh, made-up scenarios.
 

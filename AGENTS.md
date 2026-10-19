@@ -17,7 +17,7 @@ exist. A new place gets its row here in the same change — or it belongs in an 
 | `bin/` | the CLI entry point, `agent-setup` | Node 18+, **zero runtime dependencies** — build output of `src/bin/`, never hand-edit |
 | `lib/` | the CLI's modules: install/update (`sync`), other agents' hook files (`agent-hooks`), the model tiers and other tools' agent files (`models`), vendoring (`vendor`), portable copies (`export`), routing, trigger and delegation evals (`routing`), the kit against vanilla (`outcomes`), the eval summary (`evals`), cost and routing savings (`usage`), the weekly cycle (`report`), `lint` | same as `bin/` (build output of `src/lib/`) |
 | `scorecards/` | the kit's eval results: `<suite>.latest.json` from `eval-routing --save` and `eval-outcomes --save`, `<suite>.baseline.json` accepted with `evals --promote`; each stamped with the measurement method and model | written by the CLI, never by hand; CI fails when latest regresses against a baseline of the same method and model; bump `EVAL_METHOD` with any change to how runs are measured |
-| `.github/` | CI: `npm run check` and `evals --check` on every pull request and every push to `main` (protected: changes land through a pull request with the four checks green) | |
+| `.github/` | CI: `npm run check` and `evals --check` on every pull request and every push to `develop` and `main` (both protected: changes land on `develop` through a pull request with the four checks green; `main` takes only `develop`, promoted at a release) | |
 | `scripts/` | dev scripts: the TypeScript build and the test runner | plain Node, zero runtime dependencies |
 | `tests/` | `node:test` suites; hook and CLI tests run real git repos | |
 | `docs/` | PLAYBOOK, ARCHITECTURE, AUTHORING, SELF-IMPROVEMENT, SDLC; `maintaining/` holds the maintainer procedures (harvest, release) | keep true to the code |
@@ -137,6 +137,10 @@ run.
 
 ## Workflows
 
+- Landing a change: a branch from `develop` and a pull request into it
+  (`gh pr create --base develop`), squash-merged once the four checks are green. `main` is
+  production — what adopters clone and pull — and moves only when `develop` is promoted to it,
+  at a release; CI fails a pull request into `main` from any other branch.
 - Improving the kit from project lessons: follow `docs/maintaining/harvest.md`.
 - Shipping a version: follow `docs/maintaining/release.md`.
 - New skill: `node bin/agent-setup.mjs new-skill <name> --group domain|core|design|admin` (`admin`

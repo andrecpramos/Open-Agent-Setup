@@ -75,16 +75,30 @@ project's business — do not commit there unless asked.
 
 ## 6 · Publish — only when asked
 
-`main` is protected: every change, a release included, lands through a pull request whose four
-CI checks pass (Ubuntu and Windows, Node 18 and 22). No approval is required; history stays
-linear, and force-pushes and deletion are refused, for admins too.
+Two protected branches. Every change, a release included, lands on `develop` through a pull
+request whose four CI checks pass (Ubuntu and Windows, Node 18 and 22). `main` is production —
+what `git clone`, `git pull` and `npx github:` give adopters — and moves only when `develop` is
+promoted to it; CI fails a pull request into `main` from any other branch. On both, no approval
+is required; history stays linear, and force-pushes and deletion are refused, for admins too.
 
 ```bash
+# the release lands on develop, like any change
+git switch develop && git pull --ff-only
 git switch -c release/x.y.z && git commit -am "chore(release): x.y.z" && git push -u origin HEAD
-gh pr create --fill && gh pr merge --squash --auto --delete-branch   # merges once CI is green
+gh pr create --base develop --fill && gh pr merge --squash --auto --delete-branch   # merges once CI is green
+
+# develop is promoted to main: a pull request for the checks, then a fast-forward
+git switch develop && git pull --ff-only
+gh pr create --base main --head develop --title "Release x.y.z" --body "Promotes develop to main."
+gh pr checks --watch
+git push origin develop:main                 # GitHub marks the pull request merged
 git switch main && git pull --ff-only
 git tag -a vx.y.z -m "x.y.z" && git push origin vx.y.z
 gh release create vx.y.z --title "x.y.z" --notes-file <the changelog section, for adopters>
 ```
+
+Never merge the promotion pull request with the button or `gh pr merge`: squash and rebase both
+rewrite the commits, so `main` and `develop` would part ways and the next promotion would
+conflict. A fast-forward gives `main` develop's commits unchanged. Never delete `develop`.
 
 The tag is what adopters update to.

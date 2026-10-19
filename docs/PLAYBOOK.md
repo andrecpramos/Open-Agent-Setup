@@ -235,8 +235,8 @@ repository is public).
 [maintaining/release.md](maintaining/release.md): `npm run check`, the eval suites the changes could move, `evals --check`
 (read every failing case; accept intended changes with `evals --promote`, never to turn a red
 gate green unread), the version bump, then `agent-setup update --all --dry-run` and the rollout
-when you say so. CI runs `npm run check` and `evals --check` on every pull request, and `main` accepts nothing else, so a committed
-scorecard that regressed cannot land quietly.
+when you say so. CI runs `npm run check` and `evals --check` on every pull request; `develop` accepts nothing else, and `main`
+only `develop`, so a committed scorecard that regressed cannot land quietly.
 
 ## 10 · When something is off
 

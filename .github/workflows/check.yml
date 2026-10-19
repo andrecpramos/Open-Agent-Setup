@@ -1,16 +1,17 @@
-# The kit's gate on every pull request and every push to main: build, lint, strict typecheck and
-# every test (npm run check), then the committed eval scorecards against their
+# The kit's gate on every pull request and every push to develop and main: build, lint, strict
+# typecheck and every test (npm run check), then the committed eval scorecards against their
 # baselines (evals --check fails on a regression beyond sampling noise).
 #
 # The agent evals themselves (eval-routing) need a signed-in agent and are run
 # before a release; their scorecards are committed, and this job keeps them honest.
 name: check
 
-# Every change reaches main through a pull request (main is protected), so a branch is checked
-# once, as a pull request, and main once more after the merge.
+# Every change reaches develop through a pull request, and main only by promoting develop (both
+# protected), so a branch is checked once, as a pull request, and each of the two once more after
+# it moves.
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 permissions:
@@ -25,6 +26,15 @@ jobs:
         node: [18, 22]
     runs-on: ${{ matrix.os }}
     steps:
+      # main is production — what adopters clone and pull — so it takes develop and nothing else.
+      # A step of this job, so the four checks main already requires enforce it.
+      - name: main takes pull requests from develop only
+        if: >-
+          github.event_name == 'pull_request' && github.base_ref == 'main' &&
+          (github.head_ref != 'develop' || github.event.pull_request.head.repo.full_name != github.repository)
+        run: |
+          echo "::error::main takes pull requests from develop only. Retarget this one: gh pr edit --base develop"
+          exit 1
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
