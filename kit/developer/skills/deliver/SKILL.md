@@ -52,6 +52,8 @@ Risks: <auth, data, money, production, performance — or "none">
   model, a public contract, a destructive step). Otherwise state the assumption and carry on.
 - **Size it**: XS (one line, one file) · S (one area, a few files) · M (a feature across
   layers) · L (cross-cutting, risky, or more than a day). Sizing decides the rest.
+- **A PR per task** (`workflow.pullRequests: "per-task"`): the brief goes straight into a draft
+  PR, opened before the first edit, whatever the size (`../ship-it/SKILL.md`, "Start").
 
 Weak-to-strong examples and the sizing table: [references/brief.md](references/brief.md).
 
@@ -131,7 +133,8 @@ and result, screenshot); what changed (files, one line each); review findings an
 with them; **what you could not verify**; follow-ups. M and up: one line on who did each step
 and on which tier (`plan: planner (high) · build: implementer ×3 (medium) · review:
 code-reviewer (high)`), so the routing can be checked against what it cost. Then stop: commit or open a PR only when
-asked (`../ship-it/SKILL.md`); pausing mid-way → `../handoff/SKILL.md`. A correction from the
+asked (`../ship-it/SKILL.md`) — with a PR per task, land it first (ship-it, "Land") and put its
+URL and state in the report; pausing mid-way → `../handoff/SKILL.md`. A correction from the
 user along the way is a lesson → `../self-improve/SKILL.md`.
 
 ## The mistakes that matter
@@ -168,5 +171,7 @@ user along the way is a lesson → `../self-improve/SKILL.md`.
   which failed and why.
 - M and up: the right reviewers ran, and their high findings are fixed or answered.
 - The report states the evidence and what could not be verified.
+- A PR per task: the PR was open from the start and is merged (or queued, saying what for), its
+  branch deleted.
 
 Lessons this procedure taught the hard way go to `.agents/learnings/inbox.md`.

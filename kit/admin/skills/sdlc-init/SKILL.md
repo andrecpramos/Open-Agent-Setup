@@ -61,6 +61,7 @@ Answer, marking each **detected / asked / assumed**:
 | Existing docs and agent instructions | Adopted, never replaced |
 | Is the tree shared by concurrent sessions? | **Ask the user** — it changes what gets denied. In a forked run, record it as an open question |
 | Is the production branch protected on the git host? | Required pull requests and checks hold the contract for every agent and person; the Claude Code hooks hold it only in Claude Code sessions. Unprotected → a gap in the register |
+| Should every change be its own pull request? | **Ask the user.** Yes → `workflow.pullRequests: "per-task"`: a draft PR before the first edit, merged and its branch deleted at the end. Ask too whether the agent merges when green or asks first (`askMerge: true` — say so where a merge deploys). Then check the host: `gh api repos/{owner}/{repo} --jq '{squash: .allow_squash_merge, autoMerge: .allow_auto_merge, deleteBranch: .delete_branch_on_merge}'`. Squash off leaves each task's start commit in history; branch deletion off leaves merged branches behind — each is a gap for the report |
 | What does this repo know that an agent would get wrong? | The most important question. It drives Phase 3's overlays and skills |
 
 Classify: **greenfield** (install everything) · **brownfield** (fill gaps, adopt the rest) ·
@@ -155,7 +156,7 @@ is *expected* to fail — that failure is the baseline and belongs in the report
 3. **Gaps, ranked** — every rule claimed and enforced by nothing, blast radius first, using
    [references/enforcement.md](../enforcement-audit/references/enforcement.md). **This is the deliverable.**
 4. **Open questions** — what only the user can answer (shared tree? other agents? which CI
-   jobs are required?). Ask now, not later.
+   jobs are required? a pull request per task?). Ask now, not later.
 
 End with **one** next action: the cheapest fix with the largest blast radius, as a command or
 a file. Not a list — a list gets deferred.

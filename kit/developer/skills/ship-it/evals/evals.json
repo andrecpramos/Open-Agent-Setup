@@ -25,6 +25,33 @@
         "Provides the release commands for the user",
         "Mentions the fast-forward merge from the integration branch"
       ]
+    },
+    {
+      "id": 3,
+      "name": "pr-per-task-start",
+      "prompt": "Add a CSV export button to the orders table. (.agents/sdlc.config.json sets workflow.pullRequests to \"per-task\"; integration branch develop, production main; you are on develop with a clean tree.)",
+      "expected_output": "Before the first edit, updates develop, cuts a feature branch from it, commits the brief as an empty start commit, pushes the branch and opens a draft pull request into develop; then builds the change on that branch, pushing verified steps to the PR.",
+      "files": [],
+      "expectations": [
+        "Cuts a feature branch from develop before the first edit",
+        "Opens a draft pull request before the first edit",
+        "The pull request targets develop, not main",
+        "Commits nothing on develop"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "pr-per-task-land",
+      "prompt": "That's everything — finish it off. (workflow.pullRequests is \"per-task\" and askMerge is false; you are on feature/orders-csv with draft PR #42 into develop; the gates passed after the last edit and the code-reviewer found nothing high.)",
+      "expected_output": "Updates the PR description, marks the PR ready, waits for its checks, merges it with squash and deletes the branch — never with --admin — then switches back to develop, pulls with prune, deletes the local branch if it is still there, and reports the PR URL and that it merged.",
+      "files": [],
+      "expectations": [
+        "Marks the PR ready and waits for its checks before merging",
+        "Merges without --admin and without asking the user first",
+        "Deletes the branch on the remote and locally",
+        "Ends on develop, up to date",
+        "Reports the PR URL and whether it merged or is queued"
+      ]
     }
   ]
 }

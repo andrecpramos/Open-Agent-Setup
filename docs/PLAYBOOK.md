@@ -250,14 +250,18 @@ scorecard that regressed cannot land quietly.
 
 ```json
 { "workflow": { "sessionSummary": false, "verifyBeforeStop": true, "contextWarnTokens": 150000,
-                "promptIntake": true, "retroEvery": 20, "askBranch": false } }
+                "promptIntake": true, "retroEvery": 20, "askBranch": false,
+                "pullRequests": "on-request", "askMerge": false } }
 ```
 
 Change one only with a reason, and put the reason in `.agents/docs/lessons.md`.
 `sessionSummary: true` shows the person one line of metrics at session start (the admin reads
 the same numbers with `agent-setup evals`); `askBranch: true` makes the agent ask which branch
 to work on before its first edit instead of deciding and naming it. `retroEvery` is when
-`agent-setup report` lists a retro as due.
+`agent-setup report` lists a retro as due. `pullRequests: "per-task"` makes every change its own
+pull request — a draft opened before the first edit, merged when green and its branch deleted
+(`ship-it`, "A pull request per task"); `askMerge: true` has the agent ask before it merges.
+`/sdlc-init` asks about both and checks that the host squash-merges and deletes merged branches.
 
 The model tiers and prices come from the kit (`.agents/models.json`, replaced on update). A
 project changes them in the same file, section `models`, never in the copy:

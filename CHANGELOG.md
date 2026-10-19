@@ -13,6 +13,26 @@ reported); a selection that named one drops it, with a note; the git hooks an ea
 added leave each clone at its next Claude Code session start, or with
 `node .agents/hooks/setup-clone.mjs`.
 
+- **A pull request per task, for teams that want one.** With `workflow.pullRequests: "per-task"`
+  in `.agents/sdlc.config.json`, every change is its own pull request:
+  1. a branch and a draft PR before the first edit, so everyone sees what is in flight;
+  2. verified commits pushed to it as the work goes;
+  3. the review;
+  4. merged once the gates, the review and the PR's checks are green, through the host's rules;
+  5. its branch deleted, back on the integration branch.
+
+  The `ship-it` skill has the steps ("Start", "Land", or close with a reason) and `deliver` points
+  at them. `prompt-intake` names the cycle when a task arrives on the integration branch, and
+  `guard-git` denies commits on it and pushes to it, naming the branch to cut. `askMerge: true`
+  has the agent ask before merging, for a trunk where a merge deploys. Off by default: one-line
+  fixes stay cheap. `/sdlc-init` asks the admin, and checks that the host squash-merges and
+  deletes merged branches.
+- **`gh pr merge --admin` is denied** (with `guard.denyNoVerify`). It merges past the branch
+  protection's required checks and reviews, the pull request's own hooks.
+- **A branch whose PR was merged is flagged at session start.** `branch-check` speaks when the
+  current branch's remote branch is gone, as it is after a fetch with `--prune`. It says to
+  switch to the integration branch and delete the leftover branch, so new work does not start
+  on a finished one.
 - **`--session-model`: the team's starting model in one flag.** `install`/`update --session-model
   opusplan` sets the model every Claude Code session starts on (`.claude/settings.json`):
   Opus while planning, Sonnet while building, with the helpers on their own tiers — the

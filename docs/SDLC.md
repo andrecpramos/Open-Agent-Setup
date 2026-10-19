@@ -54,7 +54,7 @@ cuts from production.
 |---|---|---|
 | `denyForcePushShared` (on) | force-pushing or deleting the integration branch | it rewrites history every clone is built on |
 | `denyDiscardUncommitted` (on) | `reset --hard`, `checkout .`, `restore .` over uncommitted changes; `clean -f` over untracked files | an agent "cleaning up" destroys the user's work in progress, unrecoverably |
-| `denyNoVerify` (on) | `--no-verify`, `-c core.hooksPath=…`, changing `core.hooksPath` (reading it is how an agent checks the hooks are on, and passes), `HUSKY=0`, `SKIP=…`, the git-hook escape variable | skipping a hook ships the problem it caught |
+| `denyNoVerify` (on) | `--no-verify`, `-c core.hooksPath=…`, changing `core.hooksPath` (reading it is how an agent checks the hooks are on, and passes), `HUSKY=0`, `SKIP=…`, the git-hook escape variable; `gh pr merge --admin` | skipping a hook ships the problem it caught; `--admin` merges past the host's required checks and reviews, the hooks of the pull request |
 | `sharedTree` (extended) | also `git add -u` and `git stash` without paths | both sweep in another session's work |
 
 ## All hooks
@@ -81,7 +81,9 @@ brace globs (`src/**/*.{ts,tsx}`) like Claude Code's own `paths:` syntax, and sa
 timed out instead of reporting a generic failure.
 
 **11 · `branch-check` speaks only when the branch needs attention** — production, a detached
-HEAD, a feature branch behind the integration branch, a config naming a branch the clone does
+HEAD, a branch whose remote branch is gone (its pull request merged or closed: new work there
+starts from a finished branch; known after a fetch with `--prune`, since the hook never touches
+the network), a feature branch behind the integration branch, a config naming a branch the clone does
 not have, locally or as `origin/<branch>` (a fresh clone has only the branch it checked out, so
 the others are compared through their remote-tracking ref) — and then states the situation precisely (the trunk model's wording, the gitflow
 hotfix exception) with the contract in two lines. Restating a healthy contract at every new
@@ -218,6 +220,24 @@ intake's "have the security-reviewer check the change" and finished without it; 
 ran the review, which led to two fixes. Counted from the first edit, so fixing a review's
 findings never asks for a second review; once per edit, like the check.
 
+**23c · A pull request per task, when the team wants one.** With `workflow.pullRequests:
+"per-task"` every change is its own pull request: a branch and a draft PR before the first edit,
+so the team sees what is being worked on; verified and reviewed; merged when green and its
+branch deleted, so nothing is left behind. It is opt-in because it costs a branch, a PR and a CI
+run for a one-line fix, and needs a host CLI — the default stays rule 12's cheap guess. The
+procedure is the `ship-it` skill's; three hooks hold it. `prompt-intake` says it when a task
+arrives while the agent stands on the integration branch — the cycle starts before the first
+edit, so the session start is too early and the stop too late — and only there: on a feature
+branch it is under way. `guard-git` denies a commit on, or a push to, the integration branch,
+naming the branch to cut; uncommitted edits move with `git switch -c`, so an agent that started
+on the wrong branch loses nothing. `branch-check` flags a branch whose PR was merged since, the
+loose end of a merge that was queued. The agent merges its own PR when the gates, the review and
+the PR's checks are green — through the host's rules, never `--admin`, so an approval the host
+requires still holds it; `askMerge: true` makes it ask first, for a trunk where a merge deploys.
+Squash merges fold the empty start commit away, and the host's automatic branch deletion keeps
+the remote clean: `sdlc-init` checks both.
+
 **24 · The switches.** `workflow` in `sdlc.config.json`: `verifyBeforeStop`,
-`contextWarnTokens`, `promptIntake` and `retroEvery` (on by default), `sessionSummary` and
-`askBranch` (off). The schema documents each.
+`contextWarnTokens`, `promptIntake` and `retroEvery` (on by default), `sessionSummary`,
+`askBranch` and `askMerge` (off), `pullRequests` (`on-request`; `per-task` is rule 23c). The
+schema documents each.

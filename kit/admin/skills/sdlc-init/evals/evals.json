@@ -38,6 +38,19 @@
         "Says branch protection could not be verified, without claiming the host enforces the gates",
         "Records the unverified enforcement as a gap (partial) rather than by making the gates advisory"
       ]
+    },
+    {
+      "id": 4,
+      "name": "pr-per-task-host-settings",
+      "prompt": "Run /sdlc-init. The team wants every change to be its own pull request, opened when work starts, so everyone sees what is in flight; the agent may merge once checks pass. (The GitHub repository allows merge commits only, and does not delete branches after merge.)",
+      "expected_output": "Writes workflow.pullRequests: \"per-task\" with askMerge false, then checks the host's merge settings and reports two gaps: without squash merges each task's start commit stays in history, and without automatic branch deletion merged branches pile up — naming the setting to change for each, as the admin's call rather than changing the host itself.",
+      "files": [],
+      "expectations": [
+        "Sets workflow.pullRequests to \"per-task\" and leaves askMerge false",
+        "Checks the repository's merge settings on the host",
+        "Reports the missing squash merge and the missing automatic branch deletion as gaps",
+        "Does not change the host's settings itself"
+      ]
     }
   ]
 }

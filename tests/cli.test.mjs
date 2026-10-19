@@ -198,7 +198,8 @@ describe('install for Claude Code (a project with .claude/)', () => {
         assert.equal(existsSync(join(repo, 'CLAUDE.md')), false);
         const a = read(join(repo, 'AGENTS.md'));
         assert.match(a, /## Claude Code/);
-        assert.match(a, /When one\s+speaks, act on it[\s\S]*a check or a review asked for — run it; an INTAKE note —\s+write the brief; a\s+ROUTE note — hand the work to the agent it names/);
+        assert.match(a, /When one\s+speaks, act on it[\s\S]*a check or a review asked for — run it; an INTAKE note —\s+write the brief; a\s+ROUTE note — hand the work to the agent it names; a PR note — open the\s+draft PR before your first edit/);
+        assert.match(a, /Commit or open a PR only\s+when asked — unless `workflow\.pullRequests` in `\.agents\/sdlc\.config\.json` is `per-task`/, 'every agent reads the per-task mode, hooks or not');
         // Subagents with project memory write it under the directory they start in.
         assert.match(a, /spawn them from the repository root/);
         assert.match(a, /pass the Agent tool's `model`/, 'how to move one run up a tier');
