@@ -184,7 +184,8 @@ Everything that comes from elsewhere is recorded in `kit/vendor.json`: third-par
 copied verbatim from GitHub (`design-taste-frontend` from taste-skill, `agent-browser`). They serve
 the developer role: the kit keeps the skill folders in `kit/developer/skills/`, the commit in
 `vendor.lock.json` and one licence per source in `kit/developer/licenses/`; `agent-setup vendor sync` rebuilds them
-(`--locked` rebuilds the recorded commits exactly) and `vendor status` reports upstream moves.
+(`--locked` rebuilds the recorded commits exactly; a repository's `pin` holds it at a reviewed
+commit) and `vendor status` reports upstream moves.
 Only sources whose licence allows redistribution are vendored. Everything else in the kit —
 the SDLC layer included ([SDLC.md](SDLC.md)) — is written and maintained here.
 
@@ -306,7 +307,8 @@ The enforcement register (`enforcement-audit`) records, for each rule, which of 
   source, tiers {tier: {model, alias?, effort?}}}}`, `prices {model: {input, output, cacheRead,
   cacheWrite, cacheWrite1h, long?: {above, …}}}` in USD per million tokens. A project's
   `models` section (`prices`, `tiers`, `reference`) merges over it.
-- **Vendoring** (`kit/vendor.json`): `repos` (GitHub source, SPDX licence, `watch` folder),
+- **Vendoring** (`kit/vendor.json`): `repos` (GitHub source, SPDX licence, `watch` folder,
+  `pin` with its `why`),
   `skills` (name, repo, path, overrides, `why`), `excluded` (with `why`);
   `kit/vendor.lock.json`: `repos` (commits), `skills`.
 - **Skill evals** stay in the kit: `evals/evals.json` (skill-creator format: `skill_name`,

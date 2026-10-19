@@ -965,7 +965,7 @@ describe('kit commands', () => {
   test('vendor status works offline and lists only vendored repositories', () => {
     const v = runCli(['vendor', 'status', '--offline']);
     assert.doesNotMatch(v.out, /Derived|sdlc-kit/);
-    assert.match(v.out, /taste-skill\s+locked [0-9a-f]{12}/);
+    assert.match(v.out, /taste-skill\s+locked [0-9a-f]{12} \(pinned\)/);
   });
 
   test('with no command: the two commands an adopter needs, and where the rest is', () => {

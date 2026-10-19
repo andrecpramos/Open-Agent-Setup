@@ -589,6 +589,12 @@ function lintVendor({ vendor, add }: { vendor: { manifest: VendorManifest; lock:
   for (const [i, x] of (manifest.excluded ?? []).entries()) if (!x.why) add('error', file, `excluded[${i}] needs a \`why\``);
   for (const key of used) if (repos[key] && !lock.repos?.[key]?.commit) add('warn', file, `repo "${key}" has no locked commit — run \`agent-setup vendor sync\``);
   for (const key of Object.keys(repos)) if (!used.has(key)) add('warn', file, `repo "${key}" is not used by any skill`);
+  for (const [key, repo] of Object.entries(repos)) {
+    if (repo.pin === undefined) continue;
+    if (!/^[0-9a-f]{40}$/.test(repo.pin)) add('error', file, `repo "${key}": pin must be a full 40-character commit`);
+    if (!repo.why) add('error', file, `repo "${key}": a pin needs a \`why\``);
+    if (lock.repos?.[key]?.commit && lock.repos[key].commit !== repo.pin) add('warn', file, `repo "${key}" is pinned at ${repo.pin.slice(0, 12)} but locked at ${String(lock.repos[key].commit).slice(0, 12)} — run \`agent-setup vendor sync\``);
+  }
 
   // One licence per upstream source, and only for sources in use.
   const licDir = LICENSES_DIR;

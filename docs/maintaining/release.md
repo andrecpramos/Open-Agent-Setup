@@ -8,7 +8,7 @@ version" or "update all my projects".
 
 ```bash
 npm run check                               # lint (0 errors) + every test
-node bin/agent-setup.mjs vendor status      # did a vendored repo move? (exit 1 if so)
+node bin/agent-setup.mjs vendor status      # did a vendored repo move? (exit 1 if so; a pinned one is reported only)
 ```
 
 Stop on any failure of the first. If a vendored repository moved, report it — taking a
