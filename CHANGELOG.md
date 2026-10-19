@@ -224,6 +224,12 @@ added leave each clone at its next Claude Code session start, or with
   pull request into `develop`, and `main` — what `git clone`, `git pull` and
   `npx github:andrecpramos/Open-Agent-Setup` give you — moves only when `develop` is promoted to
   it at a release. CI fails a pull request into `main` from any other branch.
+- **An upstream change can be declined on the record.** A repository in `kit/vendor.json` takes
+  a `pin` (the reviewed commit) with its `why`: `vendor sync` stays on it, and `vendor status`
+  reports the upstream move instead of failing on it. taste-skill is pinned: its v2 rewrite
+  (2.4 MB of site data, Chrome-driving scripts, a description that claims dashboards and app
+  screens) waits for a review against the kit's design skills. `design-taste-frontend` is
+  unchanged.
 - **Self-contained examples.** The `sdlc-init` monorepo example config, the `self-improve`
   routing examples and the `enforcement-audit` reference use fresh, made-up scenarios.
 

@@ -209,7 +209,9 @@ The rules, because the next sync overwrites the folder:
   by patching the vendored body.
 - **Taking upstream changes** is `agent-setup vendor status` (what moved), `vendor sync` (take
   it), then a review of the diff — an upstream rule change lands unreviewed otherwise.
-  `vendor sync --locked` rebuilds exactly the recorded commits.
+  `vendor sync --locked` rebuilds exactly the recorded commits. An upstream change reviewed and
+  declined is a `pin` on the repository in `vendor.json` — the reviewed commit, with its `why`:
+  sync stays on it, and `vendor status` reports the upstream move instead of raising it.
 - **Licences live once, in `kit/developer/licenses/`.** Never copy one into a skill folder in the kit
   (lint fails on identical files). A skill folder that leaves the kit on its own gets its
   licence from `agent-setup export`.

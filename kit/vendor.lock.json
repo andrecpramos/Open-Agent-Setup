@@ -8,7 +8,7 @@
     "agent-browser": {
       "source": "github:vercel-labs/agent-browser",
       "fetchedFrom": "github",
-      "commit": "d01253d9db28d75080e36da3c1c31ef89454731e"
+      "commit": "dac13bb87468fe9d74a040d862720f6cc17a9565"
     }
   },
   "skills": [

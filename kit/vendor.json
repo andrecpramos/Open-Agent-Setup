@@ -1,10 +1,12 @@
 {
-  "$comment": "The skills in the kit that come from somewhere else. Vendored skills: `agent-setup vendor sync` copies each upstream skill into kit/<role>/skills/<name>/ (kit/developer/ unless the entry names a role), re-applies the frontmatter overrides below (description, compatibility, removeKeys) and writes one licence per source to that role's licenses/ folder. Never hand-edit a vendored skill folder: the next sync overwrites it. Change this file instead; `why` records the reason for every local patch. Overrides keep every skill valid under the Agent Skills spec (agentskills.io), so the kit loads in any agent that reads SKILL.md folders. Only sources whose licence allows redistribution are vendored.",
+  "$comment": "The skills in the kit that come from somewhere else. Vendored skills: `agent-setup vendor sync` copies each upstream skill into kit/<role>/skills/<name>/ (kit/developer/ unless the entry names a role), re-applies the frontmatter overrides below (description, compatibility, removeKeys) and writes one licence per source to that role's licenses/ folder. Never hand-edit a vendored skill folder: the next sync overwrites it. Change this file instead; `why` records the reason for every local patch. A repository's `pin` holds it at a reviewed commit instead of the upstream head, with its `why`. Overrides keep every skill valid under the Agent Skills spec (agentskills.io), so the kit loads in any agent that reads SKILL.md folders. Only sources whose licence allows redistribution are vendored.",
   "repos": {
     "taste-skill": {
       "github": "Leonxlnx/taste-skill",
       "license": "MIT",
-      "watch": "skills"
+      "watch": "skills",
+      "pin": "ce26fc25c0e5e8cab638f883de62d9a86ee5e45b",
+      "why": "Upstream's v2 rewrite of taste-skill is a different skill: 2.4 MB of gallery-site data, scripts that drive Chrome, and a description that claims dashboards and app screens, which v1 leaves to frontend and design-system. Held at the reviewed v1 commit until v2 is weighed against the kit's design skills with eval-routing and eval-outcomes."
     },
     "agent-browser": {
       "github": "vercel-labs/agent-browser",

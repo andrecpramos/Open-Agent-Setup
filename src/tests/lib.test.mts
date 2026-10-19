@@ -4,7 +4,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { activations, verdict, resolveScope } from '../lib/routing.mjs';
-import { frontmatterValue, specProblems } from '../lib/vendor.mjs';
+import { frontmatterValue, specProblems, upstreamLine } from '../lib/vendor.mjs';
 import { resolveSelection, loadCatalog } from '../lib/catalog.mjs';
 
 // ---------------------------------------------------------------------------
@@ -75,6 +75,23 @@ describe('vendoring: frontmatter and the Agent Skills spec', () => {
     assert.ok(problems.some((p) => /must equal its folder/.test(p)), problems.join('\n'));
     assert.ok(problems.some((p) => /description must be 1-1024 chars \(is 1100\)/.test(p)), problems.join('\n'));
     assert.ok(problems.some((p) => /"context" is not in the Agent Skills spec/.test(p)), problems.join('\n'));
+  });
+
+  test('status: upstream moving is a change to review, unless the repository is pinned at the locked commit', () => {
+    const a = 'a'.repeat(40);
+    const b = 'b'.repeat(40);
+    const repo = { github: 'o/r' };
+    assert.equal(upstreamLine('r', repo, a, a).change, false);
+    const moved = upstreamLine('r', repo, a, b);
+    assert.equal(moved.change, true);
+    assert.match(moved.line, /upstream moved .*pin the reviewed commit/);
+    const pinned = upstreamLine('r', { ...repo, pin: a, why: 'v2 is another skill' }, a, b);
+    assert.equal(pinned.change, false, 'a reviewed pin is reported, not raised');
+    assert.match(pinned.line, /pinned at a{12} \(upstream at b{12}\): v2 is another skill/);
+    const drifted = upstreamLine('r', { ...repo, pin: a, why: 'x' }, b, b);
+    assert.equal(drifted.change, true, 'a lock that left its pin needs a sync');
+    assert.match(drifted.line, /pinned at a{12}, locked at b{12} — run: agent-setup vendor sync/);
+    assert.equal(upstreamLine('r', repo, a, null).change, false, 'unreachable is not a change');
   });
 });
 

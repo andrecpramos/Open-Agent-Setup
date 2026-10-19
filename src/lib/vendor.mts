@@ -23,6 +23,10 @@ export interface VendorRepo {
   github: string;
   license?: string;
   watch?: string;
+  /** A reviewed upstream commit to stay on: sync checks it out instead of the head. */
+  pin?: string;
+  /** Why the repository is pinned: required with `pin`. */
+  why?: string;
 }
 
 /** One vendored skill listed in kit/vendor.json, with its local frontmatter overrides. */
@@ -284,13 +288,14 @@ export function vendorSync({ sources = {}, locked = false }: VendorSyncOptions =
       } catch {
         throw new CliError(`git clone of ${repo.github} failed`);
       }
-      const want = previousLock.repos?.[key]?.commit;
-      if (locked && want && git(dir, 'rev-parse', 'HEAD') !== want) {
+      // A pin wins over the head, and over --locked: it is the reviewed commit vendor.json asks for.
+      const want = repo.pin ?? (locked ? previousLock.repos?.[key]?.commit : null);
+      if (want && git(dir, 'rev-parse', 'HEAD') !== want) {
         try {
           execFileSync('git', ['-c', 'core.autocrlf=false', 'fetch', '--depth', '1', '--quiet', 'origin', want], { cwd: dir, stdio: 'inherit' });
           execFileSync('git', ['-c', 'core.autocrlf=false', 'checkout', '--quiet', want], { cwd: dir, stdio: 'inherit' });
         } catch {
-          throw new CliError(`${repo.github}: could not check out the locked commit ${want}`);
+          throw new CliError(`${repo.github}: could not check out the ${repo.pin ? 'pinned' : 'locked'} commit ${want}`);
         }
       }
       repoDirs[key] = dir;
@@ -382,6 +387,20 @@ export function vendorSync({ sources = {}, locked = false }: VendorSyncOptions =
 
 // ---------------------------------------------------------------- status
 
+/**
+ * One repository's line in `vendor status`, and whether it is a change to act on. A pinned
+ * repository is reviewed: upstream moving past the pin is reported, not raised, until the
+ * lock drifts from the pin.
+ */
+export function upstreamLine(key: string, repo: VendorRepo, lockedAt: string, head: string | null | undefined): { line: string; change: boolean } {
+  const at = (s: string): string => s.slice(0, 12);
+  if (!head) return { line: c.yellow(`  ${key.padEnd(20)} could not reach github.com/${repo.github}`), change: false };
+  if (repo.pin && lockedAt !== repo.pin) return { line: `  ${key.padEnd(20)} ${c.yellow('pinned')} at ${at(repo.pin)}, locked at ${at(lockedAt)} — run: agent-setup vendor sync`, change: true };
+  if (head === lockedAt) return { line: c.green(`  ${key.padEnd(20)} up to date (${at(head)})`), change: false };
+  if (repo.pin) return { line: `  ${key.padEnd(20)} pinned at ${at(repo.pin)} (upstream at ${at(head)}): ${repo.why ?? ''}`, change: false };
+  return { line: `  ${key.padEnd(20)} ${c.yellow('upstream moved')} ${at(lockedAt)} → ${at(head)} — review, then: agent-setup vendor sync, or pin the reviewed commit in vendor.json`, change: true };
+}
+
 /** Report what changed upstream: each vendored repository's head commit against the lock. */
 export function vendorStatus({ offline = false }: VendorStatusOptions = {}): VendorStatusResult {
   const { manifest, lock } = readVendor();
@@ -390,16 +409,13 @@ export function vendorStatus({ offline = false }: VendorStatusOptions = {}): Ven
   for (const [key, repo] of Object.entries(manifest.repos ?? {})) {
     const lockedAt = lock.repos?.[key]?.commit ?? 'not synced';
     if (offline) {
-      say(`  ${key.padEnd(20)} locked ${String(lockedAt).slice(0, 12)}`);
+      say(`  ${key.padEnd(20)} locked ${String(lockedAt).slice(0, 12)}${repo.pin ? ' (pinned)' : ''}`);
       continue;
     }
     const head = git(process.cwd(), 'ls-remote', `https://github.com/${repo.github}.git`, 'HEAD')?.split(/\s+/)[0];
-    if (!head) say(c.yellow(`  ${key.padEnd(20)} could not reach github.com/${repo.github}`));
-    else if (head === lockedAt) say(c.green(`  ${key.padEnd(20)} up to date (${head.slice(0, 12)})`));
-    else {
-      changes++;
-      say(`  ${key.padEnd(20)} ${c.yellow('upstream moved')} ${String(lockedAt).slice(0, 12)} → ${head.slice(0, 12)} — review, then: agent-setup vendor sync`);
-    }
+    const { line, change } = upstreamLine(key, repo, lockedAt, head);
+    say(line);
+    if (change) changes++;
   }
   say('');
   return { changes };
