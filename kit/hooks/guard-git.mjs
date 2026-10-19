@@ -401,7 +401,7 @@ function main() {
 
   const onGh = (args) => {
     // gh pr merge --admin: the host's required checks and reviews are its hooks.
-    if (args[0] === 'pr' && args[1] === 'merge' && g.denyNoVerify !== false && args.includes('--admin')) {
+    if (args[0] === 'pr' && args[1] === 'merge' && g.denyNoVerify !== false && args.some((t) => t === '--admin' || /^--admin=(?!false$)/.test(t))) {
       deny(
         '`gh pr merge --admin` merges past the branch protection: its required checks and reviews. Bypassing them is not a fix.',
         'wait for the checks (`gh pr checks --watch`) and fix what fails, then merge, or queue it with `gh pr merge --auto`. A required review is a teammate\'s to give: ask for it.',

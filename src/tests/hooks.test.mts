@@ -314,6 +314,7 @@ describe('guard-git: bypassing hooks', () => {
     'HUSKY=0 git commit -m x',
     'SKIP_HOOKS=1 git commit -m x',
     'gh pr merge 12 --admin --squash',
+    'gh pr merge 12 --squash --admin=true',
   ]) {
     test(`denies: ${cmd}`, () => assert.ok(guard(repo, cmd)));
   }
@@ -326,7 +327,7 @@ describe('guard-git: bypassing hooks', () => {
     assert.equal(guard(r, 'gh pr merge 12 --admin'), null);
   });
   test('a merge through the branch protection passes, and the --admin denial names the way through it', () => {
-    for (const cmd of ['gh pr merge 12 --squash --delete-branch', 'gh pr merge --auto --squash --delete-branch', 'gh pr checks 12 --watch']) {
+    for (const cmd of ['gh pr merge 12 --squash --delete-branch', 'gh pr merge --auto --squash --delete-branch', 'gh pr checks 12 --watch', 'gh pr merge 12 --squash --admin=false']) {
       assert.equal(guard(repo, cmd), null, cmd);
     }
     assert.match(guard(repo, 'gh pr merge 12 --admin')!, /merges past the branch protection[\s\S]*Instead: wait for the checks \(`gh pr checks --watch`\)/);

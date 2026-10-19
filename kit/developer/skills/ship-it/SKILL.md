@@ -102,16 +102,17 @@ work. Tick the plan's checklist as the steps land (`gh pr edit <n> --body-file <
    its high findings fixed or answered.
 2. Rewrite the description to what was built (the template above), then `gh pr ready <n>`.
 3. Wait for the PR's checks: `gh pr checks <n> --watch`. A red check is yours: push the fix and
-   wait again.
+   wait again. "No checks reported" means the repository has none to wait for — say so in the
+   report.
 4. Merge — unless `workflow.askMerge` is `true`: then ask the user in one line, and wait.
    `gh pr merge <n> --squash --delete-branch` (the repository's own method where it does not
    squash). If the host refuses because it still waits for something — an approving review, a
    merge queue — `gh pr merge <n> --auto --squash --delete-branch` queues it where the
    repository allows auto-merge; either way the report says what it waits for. Never
    `--admin`: it merges past the host's required checks and reviews.
-5. Clean up: `git switch <integration> && git pull --prune`, then delete the local branch if it
-   is still there — `git branch -D <branch>`, because after a squash merge git calls it "not
-   fully merged".
+5. Clean up: `git switch <integration> && git pull --prune`; once it merged, delete the local
+   branch if it is still there — `git branch -D <branch>`, because after a squash merge git calls
+   it "not fully merged". A queued PR keeps its branch until the host merges it.
 6. Report the PR URL, and whether it merged or is queued.
 
 **Close it instead** when the work is abandoned or the user rejects it:
