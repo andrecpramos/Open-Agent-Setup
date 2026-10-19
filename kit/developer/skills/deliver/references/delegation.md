@@ -24,7 +24,10 @@ here, with the tier each runs on and each tier's model, under "Who does what, on
 ## Routing by tier — when handing off pays
 
 The price of a step is its tokens times its model's rate. The main conversation is usually the
-most expensive place to spend tokens: every call re-reads all of it. So:
+most expensive place to spend tokens: it runs on the orchestrator's model — the strongest the
+account has — and every call re-reads all of it. Keep it for judgement, and keep it short: past
+the context budget, finish the task, leave a handoff if work remains, and let the next task start
+in a fresh window. So:
 
 - **Down** — work that needs care but not judgement (searching, reading check output, typing out
   a decided plan, the changelog) costs a fraction on a lower tier, and keeps its tokens out of

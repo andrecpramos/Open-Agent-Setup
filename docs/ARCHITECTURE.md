@@ -53,7 +53,7 @@ what developers' agents use day to day and is always installed. The **admin** ro
 (`kit/admin/`) is for whoever sets the kit up and keeps it improving: its skills set
 `disable-model-invocation: true`, so in Claude Code they run only when invoked by name and
 their descriptions never enter a developer's session; its hooks (`session-eval`,
-`learning-signals`, `context-budget`) are sensors. `--roles developer` leaves the whole
+`learning-signals`) are sensors. `--roles developer` leaves the whole
 role out. A skill's or agent's role is the folder it lives in; a hook's role is recorded in the
 catalog, because the hooks share one runtime folder (`_config.mjs`) and install as one. In a
 project every skill sits in one flat `.agents/skills/`, which is what agents read.
@@ -159,9 +159,13 @@ state for its selection:
    - new → written, unless a different file is already there (then `.kit-new`);
    - no longer desired → removed if unmodified, otherwise kept and reported.
 4. **Merge settings** — remove what the previous run added, re-merge the current fragment,
-   skip handlers the user deleted on purpose (per event). With `--session-model`, the `model`
-   every session starts on is set too — only where the project's settings choose none, removed
-   only while it is still the kit's, and not put back once someone deleted it.
+   skip handlers the user deleted on purpose (per event). The `model` every session starts on
+   is set too — the one `--session-model` named, else the orchestrator's (`kit/models.json`:
+   the anthropic provider's `session`, `best`), none with `--session-model none` — only where
+   the project's settings choose none, removed only while it is still the kit's, and not put
+   back once someone deleted it. The allow rules are the fragment's, plus one per part of each
+   gate command in `sdlc.config.json` (`gateAllowRules`), plus `guardedAllow` (working-branch
+   git writes) only while `guard-git` stays wired; no `defaultMode` is ever set.
 5. **Write managed blocks** and create project-owned files that are missing.
 6. **Write the manifest, register the project** in `~/.agent-setup/projects.json` (per user,
    so moving or re-cloning the kit orphans nothing; a registry an older checkout kept in its
@@ -280,7 +284,7 @@ folders; `.agents/rules/`, `.agents/workflows/`, `.gemini/` or `GEMINI.md` (Anti
 | `session-eval` (admin; PreCompact, SessionEnd, SessionStart) | at the end of every context window it records facts; the session-start summary line is opt-in (`workflow.sessionSummary`); blocks nothing | Claude Code |
 | `stop-check` (Stop) | when a turn ends with code changed after the last passing check, or with risky work (the intake's test) changed and no reviewer agent run on it: blocks once per edit — a subagent's edits and checks, read from its own transcript, count as the conversation's | Claude Code |
 | `run-hook` | the guard, the post-edit check, the branch note and the brief in other agents, as their events allow (§6) | Codex, Cursor, Copilot, Antigravity, Windsurf |
-| `context-budget` (admin; UserPromptSubmit) | when the context window passes each multiple of the budget: one note to the agent | Claude Code |
+| `context-budget` (UserPromptSubmit, Stop, SessionStart) | when the context window passes each multiple of the budget: one note to the agent, and at the end of that turn one line to the person (a systemMessage) to `/clear` once the task is done; after `/clear`, a pointer to a handoff written in the last six hours | Claude Code |
 | gates in CI + branch protection | before merge | everyone |
 
 The enforcement register (`enforcement-audit`) records, for each rule, which of these hold it.

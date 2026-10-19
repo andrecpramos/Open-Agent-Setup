@@ -46,10 +46,10 @@
     "check-gates": { "role": "developer", "summary": "Runs the fast check an edit could have broken, right after the edit" },
     "stop-check": { "role": "developer", "summary": "Asks once for a check when the agent finishes with code changed after the last one, and for a review of risky work nobody reviewed" },
     "prompt-intake": { "role": "developer", "summary": "A large or risky request (auth, payments, data, production, secrets) → the agent writes a brief first; a docs task or a plan to build → the cheaper agent for it" },
+    "context-budget": { "role": "developer", "summary": "Past the token budget: asks the agent to delegate and read narrowly, tells the person to /clear when the task is done, and points a cleared session to the handoff" },
     "branch-check": { "role": "developer", "summary": "Speaks at session start only when the branch needs attention: production, detached, stale, or a wrong config" },
     "session-eval": { "role": "admin", "summary": "Records one row of facts per context window, at no token cost" },
-    "learning-signals": { "role": "admin", "summary": "Notes corrections for the learnings inbox, keeps a friction log, stops a command failing three times" },
-    "context-budget": { "role": "admin", "summary": "Past the token budget, asks the agent to delegate, read narrowly and hand off" }
+    "learning-signals": { "role": "admin", "summary": "Notes corrections for the learnings inbox, keeps a friction log, stops a command failing three times" }
   },
   "core": ["deliver", "gates", "ship-it", "handoff"],
   "defaultProfile": "standard",

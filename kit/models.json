@@ -7,6 +7,12 @@
     "medium": { "use": "building to a plan, tests, routine fixes" },
     "low": { "use": "search, check output, docs, mechanical edits" }
   },
+  "orchestrator": {
+    "$comment": "The session itself: the agent the developer talks to. It runs on the strongest model the developer's tool and account have — the frontier tier, else high — and spends it on judgement, handing every step bigger than a subagent's cold start to the agent of its tier. A provider's `session` is the model name that resolves to that per account (Claude Code's `best`: Fable where the account has it, Opus otherwise); the installer sets it as Claude Code's starting model unless the project chose one.",
+    "tier": "frontier",
+    "fallback": "high",
+    "use": "your own session: the brief, the plan's decisions, routing each step, checking what comes back"
+  },
   "families": {
     "$comment": "Older or unlisted models of a family belong to its tier, so a session recorded on last year's models is still grouped and priced.",
     "fable": "frontier",
@@ -26,6 +32,7 @@
       "label": "Claude",
       "agents": ["claude"],
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "session": "best",
       "tiers": {
         "frontier": { "model": "claude-fable-5-1", "alias": "fable", "effort": "xhigh" },
         "high": { "model": "claude-opus-5-5", "alias": "opus", "effort": "high" },

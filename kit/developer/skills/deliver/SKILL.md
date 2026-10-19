@@ -59,14 +59,17 @@ Weak-to-strong examples and the sizing table: [references/brief.md](references/b
 
 ## Who does each step, on which model
 
-Each step runs on the cheapest model tier that does it well — AGENTS.md, "Who does what, on
-which model", names the agents, their tiers and each tier's model. The size decides how much to
-hand off:
+You are the orchestrator: your session runs on the strongest model the account has (AGENTS.md,
+the orchestrator row of the tier table). Its tokens are the dearest, and every call re-reads
+your whole window — so keep for yourself what needs that model (the brief, the plan's
+decisions, routing, checking what comes back) and give every other step to the cheapest tier
+that does it well. AGENTS.md, "Who does what, on which model", names the agents and their
+tiers. The size decides how much to hand off:
 
 | Step | XS · S | M | L or risky |
 |---|---|---|---|
 | Explore | yourself | scout (low) | scout (low) |
-| Plan | yourself, in a line or two | planner (high) | planner on the frontier tier; show the plan, wait for a yes |
+| Plan | yourself, in a line or two | planner (high) drafts it; you settle its decisions | planner on the frontier tier; you settle its decisions, show the plan, wait for a yes |
 | Build | yourself | implementer (medium), step by step — or yourself if you run on medium | implementer step by step; a step the plan marks high: yourself if you run on high, else the implementer moved up a tier |
 | Verify | the check | gate-runner (low) | gate-runner (low) |
 | Review | — | code-reviewer (high) | every reviewer that applies (high); security on frontier where money, auth or data loss is at stake |
@@ -82,7 +85,9 @@ each agent and escalate one: [references/delegation.md](references/delegation.md
 - **M and up: hand the plan to the planner** (where your tool has subagents) — the brief in,
   the plan out, with the tier each step needs. Give it the request before you read the code
   yourself: keeping that reading out of your context is the point. A request that only asks for
-  a plan is planner work too.
+  a plan is planner work too. The plan that comes back is yours: settle the design calls it
+  names and its questions (asking the user only what a wrong guess would make expensive), then
+  route each step by its tier.
 - **S: map before you change.** More than a handful of files to understand → delegate the
   reading to the scout agent and work from its `file:line` map.
 - **Write the steps** (the planner's job from M up): which files, in what order, each step small

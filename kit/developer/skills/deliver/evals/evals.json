@@ -68,6 +68,19 @@
         "Merges the pull request and deletes the branch, ending on develop",
         "The report includes the PR URL"
       ]
+    },
+    {
+      "id": 6,
+      "name": "agreed-plan-goes-to-the-implementer",
+      "prompt": "The plan is agreed, build it: 1. in src/billing/invoices.mjs add markPaid(orgId, id) that sets status 'paid' on an open invoice of that organisation and throws on any other status; 2. add POST /invoices/:id/pay to src/server.mjs behind requireAuth, 404 when the invoice is not the caller's; 3. tests in test/invoices.test.mjs for paying an open invoice, paying twice, and another organisation's invoice; 4. run npm test.",
+      "expected_output": "Does not re-plan or re-ask what the plan decided. Hands the building to the implementer agent, a step per call (or the steps in order), instead of typing the code in the main conversation; checks each report (the step's check, the files changed). Runs npm test after the last edit, and reports against the plan with who built which step and on which tier.",
+      "files": [],
+      "expectations": [
+        "Hands the build steps to the implementer agent rather than writing the code itself in the main conversation",
+        "Does not re-plan or ask questions the agreed plan already answers",
+        "Runs the tests after the last edit and reports the result",
+        "The report says who built which step (for example: build: implementer ×3, medium)"
+      ]
     }
   ]
 }

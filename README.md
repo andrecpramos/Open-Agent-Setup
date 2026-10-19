@@ -158,6 +158,7 @@ Work the way you already do. A few habits get the most out of it; the full page 
 | a command **denied** | a safety rail stopped a risky git command; the agent takes the safer route it names |
 | the tests running before it finishes | it changed code after the last check, so it checks again |
 | a note about your **branch** when a session starts | you are on the production branch, or behind the branch the team works on |
+| **Context: this window is at about …k tokens** | the conversation has grown large: when the task is done, `/clear` (after `/handoff` if the work continues) |
 
 In Claude Code, four commands help: `/deliver <task>` runs the full cycle on purpose (brief,
 plan, build, check, review, report), `/gates` runs the checks your CI runs, `/ship-it` commits and
@@ -305,7 +306,13 @@ the price of each and where it came from):
 | medium | building to a plan, tests, routine fixes | Sonnet | GPT-6.1 Sol, medium effort | Gemini 3.8 Flash |
 | low | searching, check output, docs, mechanical edits | Haiku | GPT-6 Luna | Gemini 3.5 Flash-Lite |
 
-Small work stays on your session's model: a helper starts cold and re-reads what you already
+**The orchestrator.** The session you talk to plans and routes: it runs on the strongest model
+the account has — in Claude Code it starts on `best`, which is Fable where the plan includes it
+and Opus otherwise — and keeps for itself only what needs that model: the brief, the plan's
+decisions, routing each step, checking what comes back. Everything else goes to the helper whose
+tier does it well.
+
+Small work stays with the orchestrator: a helper starts cold and re-reads what you already
 have, so it pays only for bigger steps. In Claude Code each helper carries its model; in Codex
 the install writes the same helpers as Codex agents (`.codex/agents/`) on the OpenAI column; any
 other agent reads the table in `AGENTS.md`. A project can run a tier on another model, or use
@@ -323,6 +330,12 @@ They stay silent until something needs doing.
 | `stop-check` | when the agent is about to finish with code changed since the last passing check, asks once for the check — and for risky work (login, payments, data, secrets, production) that no reviewer has looked at, for the review too |
 | `prompt-intake` | for a big or risky request, asks for the brief before the first edit; for a docs task or a plan to build, names the cheaper helper to hand it to; with a pull request per task, reminds the agent to open the draft PR first; everything else passes silently |
 | `branch-check` | at the start of a session, speaks up only when the branch needs attention |
+| `context-budget` | past 150k tokens in a conversation, asks the agent to delegate and read less, and tells you to `/clear` once the task is done (`/handoff` first if it continues); after `/clear`, points the agent to that handoff |
+
+Routine commands don't ask: the setup approves what the workflow runs again and again — your
+gates, reading git and the pull request, and (where `guard-git` runs) adding, committing and
+switching branches. Pushing still asks. Auto mode, the default on recent Claude Code, covers the
+rest with its own safety check.
 
 The hooks stop the agent early, but the real safety net for production is **branch protection
 on your git host** (required pull requests and checks): it holds for every agent and every
@@ -348,7 +361,7 @@ admin role out.
 | `--skills @design,agent-eval` · `--exclude <skill>` | add or leave out skills or whole groups |
 | `--roles developer` | the developer role only: no learning loop, no session recorder |
 | `--setup measure` | record a baseline before turning the kit on ([below](#measure-before-you-switch-it-on)) |
-| `--session-model opusplan` | the model every Claude Code session starts on, for the whole team: `opusplan` plans on Opus and builds on Sonnet — the largest saving measured, with the helpers on their own models. Never replaces a model the project's settings already choose; `none` takes it out again |
+| `--session-model opusplan` | the model every Claude Code session starts on, for the whole team. Unset, it is the orchestrator's: `best` (Fable where the account has it, else Opus). `opusplan` plans on Opus and builds on Sonnet — the cheaper choice, with the helpers on their own models. Never replaces a model the project's settings already choose; `none` leaves it to each person |
 | `--no-hooks` · `--verbose` | no Claude Code hooks · list every file |
 
 `node Open-Agent-Setup/bin/agent-setup.mjs help` lists every command and option. To try the kit
@@ -374,9 +387,8 @@ agent sees, so a week or two of normal work becomes the baseline. Then
 | `docs-keeper` | an agent that keeps the knowledge base true after structural changes |
 | `session-eval` (hook) | one row of facts per context window — tokens per model, the helpers' included, checks after the last edit, corrections — at no token cost |
 | `learning-signals` (hook) | notices a correction ("I told you…") so the agent notes the lesson; stops a command that failed three times |
-| `context-budget` (hook) | past 150k tokens, asks the agent to delegate, read less and hand off |
 
-The three hooks run in Claude Code.
+The two hooks run in Claude Code.
 
 ### How it gets better
 

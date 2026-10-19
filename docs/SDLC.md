@@ -13,7 +13,7 @@ to get optimised away. Every behavioural rule is covered by `tests/hooks.test.mj
 | Piece | In the kit |
 |---|---|
 | The contract | `sdlc.config.json` in each project; its schema and two worked examples in `kit/admin/skills/sdlc-init/assets/` |
-| Runtime hooks | `kit/hooks/` — `_config` (the loader every hook uses); the developer role's `branch-check`, `guard-git`, `check-gates`, `stop-check`, `prompt-intake`, `setup-clone`; the admin role's `learning-signals`, `session-eval`, `context-budget`; `run-hook`, which runs them in every other agent; and the shared `_transcript` and `_prompt` modules |
+| Runtime hooks | `kit/hooks/` — `_config` (the loader every hook uses); the developer role's `branch-check`, `guard-git`, `check-gates`, `stop-check`, `prompt-intake`, `context-budget`, `setup-clone`; the admin role's `learning-signals`, `session-eval`; `run-hook`, which runs them in every other agent; and the shared `_transcript` and `_prompt` modules |
 | Wiring | `kit/settings.fragment.json` — merged into a project's settings by the installer, never copied |
 | Install procedure | the `sdlc-init` skill |
 | Workflow method | `kit/admin/skills/sdlc-init/references/workflow.md` |
@@ -184,7 +184,7 @@ section — is the only one in the kit; the `architecture` skill uses the same f
 context window — its one-line summary at `SessionStart` is opt-in (`workflow.sessionSummary`):
 the numbers are the admin's, read with `agent-setup evals`; `stop-check` blocks the end of a turn once when code changed after the
 last passing check — a command the permission system or a hook refused never counts as a
-check — or when risky work changed and no reviewer agent looked at it (rule 23b); `context-budget` notes the agent when a window passes a size budget. `gateCommands()`
+check — or when risky work changed and no reviewer agent looked at it (rule 23b); `context-budget` reads the window's size to keep it short (rule 23e). `gateCommands()`
 makes a project's own gate commands count as checks. For `stop-check`, work a subagent did is
 work done in the conversation: it reads each run's own transcript, so code the implementer
 changed counts as an edit, a check the implementer ran after its own last edit counts as the
@@ -236,6 +236,35 @@ the PR's checks are green — through the host's rules, never `--admin`, so an a
 requires still holds it; `askMerge: true` makes it ask first, for a trunk where a merge deploys.
 Squash merges fold the empty start commit away, and the host's automatic branch deletion keeps
 the remote clean: `sdlc-init` checks both.
+
+**23d · The session orchestrates, on the strongest model the account has.** Unless the team
+chose a model, Claude Code sessions start on `best` — Fable where the account has it, Opus
+otherwise — the `orchestrator` in `kit/models.json`, the first row of the AGENTS.md tier
+table. Its judgement is spent where a weaker model's mistakes cost the most: the brief, the
+plan's decisions, routing each step, reading what comes back. It is also the dearest token in
+the session, re-read on every call, so the rest of the layer exists to keep it lean: the
+routing notes (23a), the deliver skill's table, and the window kept short (23e). A team that
+wants the cheaper setup names it once (`--session-model opusplan`); `usage` shows which pays.
+
+**23e · A long window ends at the end of a task.** Every call re-reads the whole window, and an
+old task's reading left in it pulls the next one off course. The agent cannot clear its own
+window; the person can, and knows when the task is done. So `context-budget` speaks to each in
+turn: past `workflow.contextWarnTokens` (once per band), the agent is told to delegate, read
+narrowly and leave a handoff when work will remain; at the end of that turn the person gets one
+line — `/clear` once the task is done, `/handoff` first if it continues — as a systemMessage the
+model never reads, and not at all when the agent's own last message already said it. After
+`/clear`, a handoff written in the last six hours is pointed out, so "continue" costs nothing to
+find. Not `/compact`: a summary keeps the old task's direction in the window.
+
+**23f · What the workflow runs again and again is approved once.** A prompt mid-task stops the
+person and the work; in auto mode the same command costs a classifier round-trip. The install
+allows the gates in `sdlc.config.json` (a rule per part of a compound command; none for a
+command holding a wildcard, an expansion or a redirect, and a single word stays exact: `make *`
+would approve every target), reading git and the pull request, and — only where `guard-git` runs,
+because it denies their destructive forms first — `git add`, `commit`, `switch`, `checkout -b`
+and `pull --ff-only`. Pushing still asks: it leaves the machine. No permission mode is set:
+`auto` is ignored from a project's settings, and any project value would outrank the auto mode
+each person starts in.
 
 **24 · The switches.** `workflow` in `sdlc.config.json`: `verifyBeforeStop`,
 `contextWarnTokens`, `promptIntake` and `retroEvery` (on by default), `sessionSummary`,

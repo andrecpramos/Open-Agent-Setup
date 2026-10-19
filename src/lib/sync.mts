@@ -28,7 +28,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { SpawnSyncReturns } from 'node:child_process';
 import { mkdirSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
-import { HOME_REL, KIT_DIR, KIT_ROOT, LEGACY_MANIFEST_REL, LICENSES_DIR, kitSource, kitVersion } from './paths.mjs';
+import { HOME_REL, KIT_DIR, KIT_ROOT, LEGACY_MANIFEST_REL, LICENSES_DIR, kitSource, kitVersion, sdlcConfigPath } from './paths.mjs';
 import type { Role } from './paths.mjs';
 import {
   CliError,
@@ -51,7 +51,7 @@ import { detectProject, suggestProfile } from './detect.mjs';
 import type { DetectedProject } from './detect.mjs';
 import { agentIndex, loadCatalog, parseRoles, resolveSelection, skillIndex } from './catalog.mjs';
 import type { Catalog } from './catalog.mjs';
-import { mergeSettings, unmergeSettings, signature, wiredScripts } from './settings.mjs';
+import { gateAllowRules, mergeSettings, unmergeSettings, signature, wiredScripts } from './settings.mjs';
 import type { AddedRecord, HookGroup, HookHandler, MergeResult, SettingsFragment } from './settings.mjs';
 import { MD, HASH, removeBlock, upsertBlock } from './blocks.mjs';
 import { buildVars, provisionalConfig, render, template } from './render.mjs';
@@ -60,7 +60,7 @@ import type { KitManifest } from './state.mjs';
 import { licenseFiles } from './vendor.mjs';
 import { AGENT_HOOKS, HOOK_AGENTS, addKitHooks, isEmptyHookFile, isHookAgent, presentKeys, removeKitHooks, wantedKeys } from './agent-hooks.mjs';
 import type { HookAgent } from './agent-hooks.mjs';
-import { codexAgent, isTier, modelsFor } from './models.mjs';
+import { SESSION_MODEL, codexAgent, isTier, modelsFor, orchestratorSession, sessionLabel } from './models.mjs';
 import type { ModelTable } from '../kit/hooks/_usage.mjs';
 
 export interface SyncOptions {
@@ -73,7 +73,7 @@ export interface SyncOptions {
   hooks?: boolean;
   /** Roles to install besides developer, which is always installed: admin. */
   roles?: string[];
-  /** The model Claude Code sessions start on (`opusplan`, `sonnet`…); `none` leaves it to each person. */
+  /** The model Claude Code sessions start on (`opusplan`, `sonnet`…); `none` leaves it to each person; unset, the orchestrator's (kit/models.json). */
   sessionModel?: string;
   /** Retired: the git-hooks layer was server-side branch protection rebuilt per clone. */
   gitHooks?: boolean;
@@ -104,7 +104,7 @@ export interface SelectionOpts {
   targets: string[];
   hooks: boolean;
   roles: Role[];
-  /** The model Claude Code sessions start on (settings.json `model`), or null to leave it to each person. */
+  /** The model chosen for Claude Code sessions (settings.json `model`); `none` leaves it to each person; null or absent: the orchestrator's, from kit/models.json. */
   sessionModel?: string | null;
 }
 
@@ -214,6 +214,8 @@ export interface ReportArgs {
   catalog: SyncCatalog;
   /** The profile was chosen from what the project contains, not given. */
   profileDetected: boolean;
+  /** The model Claude Code sessions start on, chosen or the orchestrator's, as people read it; null: none. */
+  sessionModel: string | null;
 }
 
 const HOME: string = HOME_REL;
@@ -233,8 +235,6 @@ const SKILL_EXCLUDE = (rel: string): boolean => rel.startsWith('evals/') || rel.
 const MEASURE_HOOKS: Set<string> = new Set(['_config.mjs', '_transcript.mjs', '_prompt.mjs', '_usage.mjs', 'session-eval.mjs', 'setup-clone.mjs']);
 // The model tiers and prices, where the hooks and the agents read them.
 const MODELS_REL: string = `${HOME}/models.json`;
-/** What --session-model accepts: Claude Code's aliases and model ids, with an optional context tag. */
-const SESSION_MODEL: RegExp = /^(opusplan|sonnet|opus|haiku|fable|best|claude-[a-z0-9-]+)(\[1m\])?$/;
 /** Codex reads its custom agents from .codex/agents/<name>.toml. */
 const codexAgentRel = (name: string): string => `.codex/agents/${name}.toml`;
 
@@ -425,9 +425,11 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
     hooks: opts.hooks ?? was.hooks ?? true,
     // Developer is always installed; an install that never chose kept both roles.
     roles: parseRoles(['developer', ...(opts.roles?.length ? opts.roles : (was.roles ?? ['admin']))]),
-    sessionModel: opts.sessionModel === 'none' ? null : (opts.sessionModel ?? was.sessionModel ?? null),
+    // Recorded as chosen — a model, or `none` — so a project that never chose follows the kit's
+    // orchestrator when kit/models.json changes it.
+    sessionModel: opts.sessionModel ?? was.sessionModel ?? null,
   };
-  if (selOpts.sessionModel && !SESSION_MODEL.test(selOpts.sessionModel)) {
+  if (selOpts.sessionModel && selOpts.sessionModel !== 'none' && !SESSION_MODEL.test(selOpts.sessionModel)) {
     throw new CliError(`--session-model must be a Claude Code model: opusplan, sonnet, opus, haiku, fable, best, a claude-* id, or none — not "${selOpts.sessionModel}"`);
   }
   const L0: string[] = [];
@@ -464,6 +466,10 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
   // --- Hooks: a locally modified _config.mjs would break every other hook ---
   // A project's own Codex agent of the same name wins over the kit's rendering of it.
   const table: ModelTable = modelsFor(target);
+  // The session is the orchestrator: unless the team chose a model, it starts on the strongest
+  // the account has (Claude Code's `best`). A baseline (measure) never sets one.
+  const sessionModel: string | null =
+    mode !== 'full' || selOpts.sessionModel === 'none' ? null : (selOpts.sessionModel ?? orchestratorSession(table));
   const codexSkipped: Set<string> = new Set();
   if (selOpts.targets.includes('codex')) {
     for (const a of selection.agents) {
@@ -584,6 +590,14 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
   delete (fragment as Record<string, unknown>).$comment;
   if (!selOpts.hooks || hooksBlocked || !claude) fragment.hooks = {};
   if (!claude) fragment.permissions = { allow: [], ask: [], deny: [] };
+  // The project's own gates run after every edit, build step and review: approved once here
+  // instead of a prompt each time. Recorded like every rule the kit adds, so on update they
+  // follow the gates in the config.
+  if (claude && mode === 'full') {
+    const cfgFile: string | null = sdlcConfigPath(target);
+    const gates: unknown = cfgFile ? (readJsonFile(cfgFile).value as { gates?: unknown } | null)?.gates : undefined;
+    fragment.permissions = { ...fragment.permissions, allow: [...(fragment.permissions?.allow ?? []), ...gateAllowRules(gates)] };
+  }
   // Only the handlers of the selected roles' hooks (a baseline keeps its recorder below).
   if (mode === 'full') {
     const scriptOf = (h: HookHandler): string => ((h.args ?? []) as unknown[]).join(' ').match(/\.agents\/hooks\/([\w.-]+)/)?.[1] ?? '';
@@ -622,12 +636,18 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
     // The session model too: deleted by hand, it stays deleted — until someone names one again.
     if (prevAdded.model && (current as Record<string, unknown>).model === undefined) removedByUser.add('model');
   }
-  if (opts.sessionModel) removedByUser.delete('model');
-  if (claude && mode === 'full' && selOpts.sessionModel && !removedByUser.has('model')) fragment.model = selOpts.sessionModel;
+  if (opts.sessionModel && opts.sessionModel !== 'none') removedByUser.delete('model');
+  if (claude && sessionModel && !removedByUser.has('model')) fragment.model = sessionModel;
   const base: ProjectSettings = unmergeSettings(current, prevAdded) as ProjectSettings;
   for (const [event, groups] of Object.entries(fragment.hooks ?? {})) {
     for (const g of groups) g.hooks = (g.hooks ?? []).filter((h) => !removedByUser.has(eventKey(event, signature(h))));
   }
+  // Working-branch writes (add, commit, switch) are approved only where guard-git still runs:
+  // it denies their destructive forms before any allow rule applies.
+  const guardedAllow: string[] = fragment.permissions?.guardedAllow ?? [];
+  if (fragment.permissions) delete fragment.permissions.guardedAllow;
+  const guardRuns: boolean = (fragment.hooks?.PreToolUse ?? []).some((g) => (g.hooks ?? []).some((h) => JSON.stringify(h.args ?? []).includes('guard-git.mjs')));
+  if (guardRuns && fragment.permissions) fragment.permissions.allow = [...(fragment.permissions.allow ?? []), ...guardedAllow];
   const merged: MergeResult = mergeSettings(base, fragment);
   L.notes.push(...merged.notes);
   const settingsText = `${JSON.stringify(merged.settings, null, 2)}\n`;
@@ -828,7 +848,9 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
   }
 
   if (!opts.quiet) {
-    const args: ReportArgs = { target, opts, prev, detection, selection, skipped, plan, selOpts, catalog, profileDetected };
+    // Only the model that landed: a project whose settings choose their own keeps it, and is not told otherwise.
+    const landed: boolean = claude && Boolean(sessionModel) && (merged.settings as { model?: unknown }).model === sessionModel;
+    const args: ReportArgs = { target, opts, prev, detection, selection, skipped, plan, selOpts, catalog, profileDetected, sessionModel: landed && sessionModel ? sessionLabel(table, sessionModel) : null };
     const plain: boolean = opts.mode === 'install' && mode === 'full';
     if (!plain || opts.verbose) report(args);
     if (plain) installReport(args);
@@ -836,7 +858,7 @@ export function sync(targetArg: string | null | undefined, opts: SyncOptions): S
   return { manifest, log: L };
 }
 
-function report({ target, opts, prev, detection, selection, skipped, plan, selOpts, catalog }: ReportArgs): void {
+function report({ target, opts, prev, detection, selection, skipped, plan, selOpts, catalog, sessionModel }: ReportArgs): void {
   const L = plan.log;
   const verb: string = opts.mode === 'install' ? 'install' : `update ${prev?.kit?.version ?? '?'} →`;
   say('', `${c.bold(`agent-setup ${verb} ${kitVersion()}`)}  ${c.dim(target)}${plan.dryRun ? c.yellow('  (dry run — nothing written)') : ''}`, '');
@@ -845,7 +867,7 @@ function report({ target, opts, prev, detection, selection, skipped, plan, selOp
   say(`  ${c.dim('Detected')}   ${detection.stack.join(', ') || 'no manifests'} · ${git}${detection.ci.length ? ` · CI: ${detection.ci.join(', ')}` : ' · no CI found'}`);
   const suggestion: string = suggestProfile(detection);
   say(
-    `  ${c.dim('Selection')}  ${selOpts.mode === 'measure' ? `${c.bold('measure-only baseline')} · ` : ''}roles: ${selOpts.roles.join(', ')} · profile ${c.bold(selOpts.profile)}${suggestion !== selOpts.profile ? c.dim(` (detected fit: ${suggestion})`) : ''} · targets: ${selOpts.targets.join(', ')} · hooks: ${selOpts.hooks ? 'on' : 'off'}${selOpts.sessionModel ? ` · session model: ${selOpts.sessionModel}` : ''}`,
+    `  ${c.dim('Selection')}  ${selOpts.mode === 'measure' ? `${c.bold('measure-only baseline')} · ` : ''}roles: ${selOpts.roles.join(', ')} · profile ${c.bold(selOpts.profile)}${suggestion !== selOpts.profile ? c.dim(` (detected fit: ${suggestion})`) : ''} · targets: ${selOpts.targets.join(', ')} · hooks: ${selOpts.hooks ? 'on' : 'off'}${sessionModel ? ` · session model: ${sessionModel}` : ''}`,
     '',
   );
 
@@ -917,7 +939,7 @@ const TECHNICAL_NOTE = /hook handler\(s\) and .* permission rule|link\(s\) creat
  * else changes, how to undo it, and what to do next. A preview (dry run) says "will add"; the
  * confirmed run after a preview (`brief`) only says it is done and what comes next.
  */
-function installReport({ target, opts, detection, selection, skipped, plan, selOpts, catalog, profileDetected }: ReportArgs): void {
+function installReport({ target, opts, detection, selection, skipped, plan, selOpts, catalog, profileDetected, sessionModel }: ReportArgs): void {
   const L = plan.log;
   const preview: boolean = plan.dryRun;
   const claude: boolean = selOpts.targets.includes('claude');
@@ -963,7 +985,7 @@ function installReport({ target, opts, detection, selection, skipped, plan, selO
     if (admin) sub('learnings/', 'where the agent notes lessons, for whoever maintains the setup');
     sub('overlays/', "this project's own rules for a skill (empty for now)");
     if (claude) {
-      if (hooks.length) row('.claude/settings.json', `turns the hooks on in Claude Code (merged with what is there)${selOpts.sessionModel ? `, and starts sessions on ${selOpts.sessionModel}` : ''}`);
+      if (hooks.length) row('.claude/settings.json', `turns the hooks on in Claude Code (merged with what is there)${sessionModel ? `, and starts sessions on ${sessionModel}` : ''}`);
       if (agents.length) row('.claude/agents/', `${agents.length} helper agents — ${list(agents, 6)}`);
     }
     for (const a of hookAgents) {
@@ -998,8 +1020,8 @@ function installReport({ target, opts, detection, selection, skipped, plan, selO
   );
   for (const a of hookAgents) if (AGENT_HOOKS[a].trust) steps.push(AGENT_HOOKS[a].trust as string);
   // The session's own model is the largest share of the bill: worth one decision for the team.
-  if (claude && !selOpts.sessionModel && selOpts.mode === 'full') {
-    steps.push(`Optional, for the whole team: ${kitCmd} update "${where}" --session-model opusplan — sessions plan on Opus and build on Sonnet, while the helpers keep their own models.`);
+  if (claude && sessionModel && !selOpts.sessionModel) {
+    steps.push(`Sessions start on ${sessionModel}: the strongest model each account has plans and routes, and helpers on cheaper models build, search and check. To spend less: ${kitCmd} update "${where}" --session-model opusplan (Opus while planning, Sonnet while building).`);
   }
   if (admin) {
     steps.push(

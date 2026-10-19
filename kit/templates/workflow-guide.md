@@ -43,8 +43,13 @@ Don't touch <what is out of scope>.
   report.
 - **Paste the error**, not a description of it. **Point at an example**: "like the invoices
   page".
-- **One task per session.** When it is done: `/handoff` (or `/clear`) and start fresh. Long
-  sessions get slower and more expensive with every message.
+- **One task per session.** When it is done, `/clear` and start fresh — after `/handoff` if the
+  work continues. Every message re-reads the whole conversation, so a long one gets slower, more
+  expensive and easier to pull off topic. Once a conversation is large, Claude Code tells you
+  when a task ends; after `/clear`, the agent finds the handoff by itself.
+- **Fewer prompts**: run Claude Code in auto mode (shift+tab; the default on recent versions),
+  where a safety check approves routine actions instead of you. The setup already approves the
+  checks the agent runs constantly (the gates, reading git and the pull request), in every mode.
 
 ## What you will see, and what it means
 
@@ -55,26 +60,30 @@ Don't touch <what is out of scope>.
 | the agent runs the tests before it finishes | it changed code after the last check | nothing: it reports the result |
 | a note about the **branch** at session start | you are on production, detached, behind the integration branch, or on a branch whose PR was merged | let the agent switch or update, or tell it where to work |
 | a **draft pull request** as soon as work starts | the team runs a pull request per task (`workflow.pullRequests`), so everyone sees what is in flight | follow it or comment on it; the agent merges it when the checks are green and deletes the branch |
+| **Context: this window is at about …k tokens** when a turn ends | the conversation has grown past its budget | when the task is done, `/clear` (`/handoff` first if the work continues) |
 
 ## Which model, and what it costs
 
-Not every step needs the best model. The agent hands each step to a helper running on the
-cheapest model that does it well (`AGENTS.md`, "Who does what, on which model"): searching the code, reading
-test output and writing the changelog on a small model; building from an agreed plan on a
-mid-size one; plans and reviews on the strongest; the very hardest work on the top model. You
-do not pick these: the helpers carry their own model.
+The agent you talk to is the **orchestrator**: it runs on the strongest model you have and
+spends it on judgement — understanding the request, deciding the plan, sending each step to the
+right helper, checking what comes back. The helpers run on the cheapest model that does their
+step well (`AGENTS.md`, "Who does what, on which model"): searching the code, reading test
+output and writing the changelog on a small model; building from an agreed plan on a mid-size
+one; plans and reviews on a strong one. You do not pick these: the helpers carry their own
+model.
 
-You pick the model of your own session, which most of the tokens go through:
+In Claude Code, sessions start on `best` — Fable where your plan includes it, Opus otherwise —
+unless this repository's setup chose another starting model (`agent-setup ... --session-model`).
+`/model` still changes yours for the session:
 
 | For | In Claude Code |
 |---|---|
-| everyday work | `/model opusplan` — Opus while you plan (shift+tab to plan mode), Sonnet while it builds — or `/model sonnet` |
-| a hard design or a bug that resists | `/model opus` |
-| the hardest, longest work | `/model fable`, where your plan includes it |
+| everyday work, as set up | `/model best` |
+| out of Fable usage ("You're out of usage credits") | `/model opus` — `best` does not fall back by itself |
+| spending less | `/model opusplan` — Opus while you plan (shift+tab to plan mode), Sonnet while it builds — or `/model sonnet` |
 
-If this repository's setup chose a starting model for everyone (`agent-setup ... --session-model`),
-sessions open on it; `/model` still changes yours for the session. In Codex and other tools,
-choose the model the same way, in the tool's model picker.
+In Codex and other tools, choose the orchestrator row's model from the tier table in `AGENTS.md`,
+in the tool's model picker.
 
 **What did it cost?** `node .agents/hooks/session-eval.mjs --usage` (where the setup records
 sessions) shows the cost per model, what handing steps to cheaper helpers saved, and whether

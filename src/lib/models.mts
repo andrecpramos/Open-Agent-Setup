@@ -47,12 +47,50 @@ export function providersFor(table: ModelTable, targets: string[]): string[] {
 
 const cell = (tm: TierModel | undefined, alias: boolean): string => (tm ? `\`${alias && tm.alias ? tm.alias : tm.model}\`${tm.effort ? ` · ${tm.effort}` : ''}` : '—');
 
-/** The AGENTS.md "Model tiers" table: each tier's use, and its model and effort per provider. */
+/** The models Claude Code accepts as a session's starting model (`--session-model`, a provider's `session`). */
+export const SESSION_MODEL: RegExp = /^(opusplan|sonnet|opus|haiku|fable|best|claude-[a-z0-9-]+)(\[1m\])?$/;
+
+/**
+ * The model Claude Code sessions start on when the install chose none: the anthropic
+ * provider's `session` name, which resolves per account to the orchestrator's tier or its
+ * fallback; else the orchestrator tier's alias.
+ */
+export function orchestratorSession(table: ModelTable): string | null {
+  const prov = table.providers.anthropic;
+  const tier: Tier | undefined = table.orchestrator?.tier;
+  const named: string | undefined = prov?.session ?? (tier ? prov?.tiers?.[tier]?.alias : undefined);
+  return named && SESSION_MODEL.test(named) ? named : null;
+}
+
+/** A session model for people: `best (fable where the account has it, else opus)`; any other name as it is. */
+export function sessionLabel(table: ModelTable, model: string): string {
+  const prov = table.providers.anthropic;
+  const o = table.orchestrator;
+  if (!o || !prov?.session || model !== prov.session) return model;
+  const top: string = prov.tiers[o.tier]?.alias ?? o.tier;
+  const next: string | undefined = o.fallback ? (prov.tiers[o.fallback]?.alias ?? o.fallback) : undefined;
+  return next ? `${model} (${top} where the account has it, else ${next})` : `${model} (${top})`;
+}
+
+/** One provider's orchestrator cell: its session name where the tool resolves one, else the tier's model and the fallback's. */
+function orchestratorCell(table: ModelTable, p: string, claude: boolean): string {
+  const o = table.orchestrator;
+  const prov = table.providers[p];
+  if (!o || !prov) return '—';
+  if (p === 'anthropic' && claude && prov.session) return `\`${prov.session}\` — \`${prov.tiers[o.tier]?.alias ?? o.tier}\`, else \`${(o.fallback && prov.tiers[o.fallback]?.alias) || o.fallback || '—'}\``;
+  const top: TierModel | undefined = prov.tiers[o.tier];
+  const next: TierModel | undefined = o.fallback ? prov.tiers[o.fallback] : undefined;
+  const alias: boolean = p === 'anthropic' && claude;
+  return next && next.model !== top?.model ? `${cell(top, alias)}, else \`${alias && next.alias ? next.alias : next.model}\`` : cell(top, alias);
+}
+
+/** The AGENTS.md "Model tiers" table: the orchestrator (the session), then each tier's use, and its model and effort per provider. */
 export function tierTable(table: ModelTable, targets: string[]): string {
   const provs: string[] = providersFor(table, targets);
   const claude: boolean = targets.includes('claude');
   const head = (p: string): string => (p === 'anthropic' && claude ? `${table.providers[p].label} (Claude Code)` : table.providers[p].label);
   const rows: string[] = [`| Tier | Use it for | ${provs.map(head).join(' | ')} |`, `|---|---|${provs.map(() => '---|').join('')}`];
+  if (table.orchestrator) rows.push(`| **orchestrator** | ${table.orchestrator.use} | ${provs.map((p) => orchestratorCell(table, p, claude)).join(' | ')} |`);
   for (const tier of TIERS) {
     rows.push(`| ${tier} | ${table.tiers?.[tier]?.use ?? ''} | ${provs.map((p) => cell(table.providers[p].tiers[tier], p === 'anthropic' && claude)).join(' | ')} |`);
   }
