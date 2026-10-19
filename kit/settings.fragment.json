@@ -1,5 +1,5 @@
 {
-  "$comment": "Merged into a project's .claude/settings.json by `agent-setup install/update`: permissions are unioned, hook handlers are added only where no equivalent handler already covers the event and tool, nothing existing is removed, and .claude/settings.local.json is never touched. Exec form (command + args) is used so no shell ever re-parses a path — the Windows `bash` on PATH can be WSL's, not Git Bash. File rules are Edit(...) only: Claude Code matches file permission checks against Edit rules, which cover every file-editing tool; Write(...) rules are ignored (found by an end-to-end run).",
+  "$comment": "Merged into a project's .claude/settings.json by `agent-setup install/update`: permissions are unioned, hook handlers are added only where no equivalent handler already covers the event and tool, nothing existing is removed, and .claude/settings.local.json is never touched. Exec form (command + args) is used so no shell ever re-parses a path — the Windows `bash` on PATH can be WSL's, not Git Bash. File rules are Edit(...) only: Claude Code matches file permission checks against Edit rules, which cover every file-editing tool; Write(...) rules are ignored (found by an end-to-end run). Allow rules cover what the workflow runs again and again — reading git and the pull request, the gates — so neither a prompt (Manual mode) nor a classifier round-trip (auto mode) interrupts it; the installer adds the project's own gate commands from sdlc.config.json. `guardedAllow` is added only where guard-git is wired: it approves working-branch writes because the guard denies their destructive forms first. No `defaultMode`: a project's value outranks the auto mode each person starts in, and `auto` itself is ignored from project settings.",
   "permissions": {
     "allow": [
       "Bash(git status:*)",
@@ -11,7 +11,32 @@
       "Bash(git rev-list:*)",
       "Bash(git rev-parse:*)",
       "Bash(git symbolic-ref:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git blame:*)",
+      "Bash(git grep:*)",
+      "Bash(git describe:*)",
+      "Bash(git remote -v)",
+      "Bash(git stash list:*)",
+      "Bash(git worktree list:*)",
+      "Bash(git fetch:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr status:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh repo view:*)",
       "Bash(node .agents/skills/gates/scripts/run-gates.mjs:*)"
+    ],
+    "guardedAllow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git switch:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git pull --ff-only:*)"
     ],
     "ask": [
       "Edit(.agents/sdlc.config.json)",
@@ -51,6 +76,12 @@
             "command": "node",
             "args": ["${CLAUDE_PROJECT_DIR}/.agents/hooks/session-eval.mjs"],
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/.agents/hooks/context-budget.mjs"],
+            "timeout": 10
           }
         ]
       }
@@ -87,6 +118,12 @@
             "command": "node",
             "args": ["${CLAUDE_PROJECT_DIR}/.agents/hooks/stop-check.mjs"],
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/.agents/hooks/context-budget.mjs"],
+            "timeout": 10
           }
         ]
       }

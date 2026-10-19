@@ -91,6 +91,34 @@ export function scriptOf(handler: HookHandler | null | undefined): string | null
 
 export const signature = (h: HookHandler | null | undefined): string => JSON.stringify([h?.type ?? 'command', h?.command ?? '', Array.isArray(h?.args) ? h.args : []]);
 
+// What a rule cannot carry literally: `*` is the rule's own wildcard; expansions, substitutions
+// and redirects are for Claude Code to judge each time, not for a rule to approve ahead.
+const NOT_IN_RULE = /[*$`<>(){}\\\n]/;
+
+/**
+ * Allow rules for a project's gate commands (sdlc.config.json `gates`): the checks the agent and
+ * its helpers run after every edit, step and review — approved once instead of prompting each
+ * time. A compound command gets a rule per part (Claude Code matches each part on its own; a
+ * `cd` into the tree needs none), a leading `VAR=value` is dropped (Claude Code matches past the
+ * safe ones), and a part of two words or more also takes arguments (`npm test *`: one test
+ * file). A single word stays exact: `make *` would approve every target. A command holding a
+ * wildcard, an expansion or a redirect gets no rule and keeps prompting.
+ */
+export function gateAllowRules(gates: unknown): string[] {
+  const out: string[] = [];
+  for (const g of Array.isArray(gates) ? gates : []) {
+    const cmd: string = typeof g?.command === 'string' ? g.command.trim() : '';
+    if (!cmd || NOT_IN_RULE.test(cmd)) continue;
+    for (const raw of cmd.split(/\s*(?:&&|\|\||;|\|)\s*/)) {
+      const part: string = raw.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/, '').trim();
+      if (!part || part.includes('&') || /^cd(?:\s|$)/.test(part)) continue;
+      const rule: string = /\s/.test(part) ? `Bash(${part} *)` : `Bash(${part})`;
+      if (!out.includes(rule)) out.push(rule);
+    }
+  }
+  return out;
+}
+
 function matcherCovers(matcher: unknown, name: string): boolean {
   if (matcher === undefined || matcher === null || matcher === '' || matcher === '*') return true;
   try {

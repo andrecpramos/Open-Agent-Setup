@@ -33,13 +33,36 @@ added leave each clone at its next Claude Code session start, or with
   current branch's remote branch is gone, as it is after a fetch with `--prune`. It says to
   switch to the integration branch and delete the leftover branch, so new work does not start
   on a finished one.
-- **`--session-model`: the team's starting model in one flag.** `install`/`update --session-model
-  opusplan` sets the model every Claude Code session starts on (`.claude/settings.json`):
-  Opus while planning, Sonnet while building, with the helpers on their own tiers — the
-  session's own model was the largest share of the bill in every measured run. Never replaces a
-  model the project's settings already choose, is removed only while it is still the kit's, and
-  stays removed once someone deletes it; `--session-model none` takes it out. The install's
-  next steps offer it when none is set.
+- **The session is the orchestrator, on the strongest model the account has.** Claude Code
+  sessions now start on `best` — Fable where the account has it, Opus otherwise
+  (`.claude/settings.json` `model`) — and spend it on judgement: the brief, the plan's decisions,
+  routing each step, checking what comes back; the helpers build, search, check and write docs
+  on cheaper tiers. `kit/models.json` gains an `orchestrator` (frontier, falling back to high),
+  shown as the first row of the AGENTS.md tier table with each provider's model, so Codex and
+  Gemini users pick theirs; lint holds it. `--session-model` chooses another model for the team
+  (`opusplan`: Opus while planning, Sonnet while building — the cheaper setup) and
+  `--session-model none` leaves it to each person; a project that never chose follows the kit.
+  Never replaces a model the project's settings already choose, is removed only while it is
+  still the kit's, and stays removed once someone deletes it. The deliver skill names the
+  session the orchestrator: the planner drafts M and L plans, and the session settles their
+  decisions. New outcome eval case: an agreed plan is built by the implementer, not typed out
+  by the session.
+- **A long conversation ends at the end of a task.** `context-budget` moves to the developer role
+  and, past `workflow.contextWarnTokens` (150k by default), tells the person at the end of that
+  turn to `/clear` once the task is done — `/handoff` first if the work continues — as a line
+  the model never reads, and not when the agent just said so. The agent's own note now asks for a
+  handoff when work will remain. After `/clear`, a handoff written in the last six hours (or the
+  living plan document) is pointed out to the agent, so "continue" picks the work up. Every
+  message re-reads the whole window: a fresh one is cheaper and keeps the old task out of the
+  new one's reasoning.
+- **Fewer permission prompts.** The install approves what the workflow runs again and again:
+  the project's gate commands from `sdlc.config.json` (a rule per command part, kept in step with
+  the config on each `update`; none for a command with a wildcard, an expansion or a redirect),
+  reading git and pull requests (`git fetch`, `blame`, `ls-files`, `gh pr view`, `gh pr checks`,
+  `gh run view`…), and — only where `guard-git` runs, since it denies their destructive forms
+  first — `git add`, `commit`, `switch`, `checkout -b` and `pull --ff-only`. Pushing still asks.
+  No permission mode is set: a project's value would outrank the auto mode each person starts
+  in. In auto mode the same rules skip the classifier's round-trip.
 - **Risky work is reviewed before it is called done.** `stop-check` now also asks, in its one
   block per edit, for the security-reviewer (or the code-reviewer) when a risky task prompt —
   the intake's test: auth, payments, data, personal data, secrets, production — changed code

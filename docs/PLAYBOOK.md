@@ -63,7 +63,7 @@ by `--roles developer`.
 | `branch-check` | session start | only when the branch needs attention (production, detached, behind the integration branch, a wrong config): the situation and the contract | a few lines, only then |
 | `prompt-intake` | each prompt | a large or risky task (auth, payments, data, production, secrets) → the agent writes a brief before its first edit; a docs task or a plan to build → it hands the work to the doc-writer or the implementer | ~100 tokens, only then |
 | `learning-signals` (admin) | each prompt | a correction or "from now on" prompts the agent to note the lesson in the inbox | a few lines, only then |
-| `context-budget` (admin) | each prompt | past 150k tokens (and each further 150k), asks the agent to delegate, read narrowly and hand off | ~90 tokens, once per band |
+| `context-budget` | each prompt; the end of each turn; after `/clear` | past 150k tokens (and each further 150k): asks the agent to delegate, read narrowly and leave a handoff when work will remain; at the end of the turn tells the person to `/clear` once the task is done (unless the agent just said so); after `/clear`, points the agent to a handoff written in the last six hours | ~90 tokens, once per band; the person's line costs nothing; ~40 tokens after a `/clear` with a fresh handoff |
 | `guard-git` | before a shell command | denies production writes, force-pushes, hook bypasses; names the alternative | only when it denies |
 | `check-gates` | after an edit | runs the fast check that edit could break | only on failure |
 | `stop-check` | end of a turn | code changed after the last passing check → asks once for the check; risky work never reviewed → asks for the reviewer in the same block | one turn at most, once per edit |
@@ -117,15 +117,17 @@ shows at most how much it saved, *escalated up* what it paid for a harder step, 
 against everything on the main model (or the `--vs` tier). Against the main model it is a
 ceiling: a subagent re-reads its instructions and files when it starts, and the main thread
 doing the step itself would not have. On real runs of small tasks the true saving was a
-fraction of the ceiling, because the main thread's own model dominates the bill — which is why
-the session model (WORKFLOW.md: `opusplan` or Sonnet) is the first lever, and handing steps
-down the second. **Quality** — the windows that routed work
+fraction of the ceiling, because the main thread's own model dominates the bill. The kit starts
+sessions on the orchestrator (`best`: the strongest model the account has) for its judgement,
+and keeps that affordable by handing every larger step down and keeping windows short
+(`context-budget`); `--session-model opusplan` or a Sonnet session is the cheaper setup, at the
+cost of the session's own reasoning. **Quality** — the windows that routed work
 across tiers beside the ones that did not, on checked-after-edit, passed, corrections, unbacked
 claims and failed calls.
 
 | Reading | Means | Lever |
 |---|---|---|
-| most of the cost in the main thread on high or frontier, little delegated down | the expensive model reads, searches and types out plans | `/model opusplan` or a Sonnet main session (WORKFLOW.md); the deliver skill's routing table; check the scout and implementer are installed |
+| most of the cost in the main thread on high or frontier, little delegated down | the orchestrator reads, searches and types out plans itself | check the scout and implementer are installed and the deliver skill's routing table holds; long windows: is the `/clear` line being followed? If it still costs too much, `--session-model opusplan` |
 | delegated down large, routed quality below one-tier quality | a cheap tier is doing judgement work | move that agent up a tier in `kit/catalog.json` (and its file), or brief it better (deliver's delegation reference) |
 | escalations frequent and expensive | steps fail on their tier and climb | read those windows: a plan too vague for the implementer, a task sized too small |
 | a model with "no price" | it is costed at $0 | add it to `kit/models.json`, or the project's `models.prices` |
@@ -206,10 +208,15 @@ repository is public).
 
 - **Before**: the baseline (§1), and `/sdlc-init` once the kit is on — without verified gates
   the stop-check can only ask for "the test and lint commands".
-- **The session model**: decide it once for the team — `update <project> --session-model
-  opusplan` (Opus while planning, Sonnet while building) is the cheapest setup that keeps plans
-  and reviews on the strongest model, since the helpers carry their own. Compare `usage` before
-  and after over 20 windows; anyone can still `/model` for a session.
+- **The session model**: sessions start on the orchestrator, `best` (Fable where the account has
+  it, else Opus), unless you choose for the team. `update <project> --session-model opusplan`
+  (Opus while planning, Sonnet while building) is the cheaper setup that keeps plans and reviews
+  on a strong model, since the helpers carry their own. Compare `usage` and the quality block
+  before and after over 20 windows; anyone can still `/model` for a session.
+- **Prompts**: the install approves the gates in `.agents/sdlc.config.json` (run `update` after
+  `/sdlc-init` sets them), reading git and the pull request, and working-branch git writes
+  where `guard-git` runs. It sets no permission mode: auto mode, each person's default on recent
+  Claude Code, cannot be set by a project, and a project's mode would override it.
 - **The 15-minute demo**, live in the team's repository:
   1. a small fix → made, checked and reported, with no ceremony;
   2. a risky change ("add refunds to checkout") → the brief, corrected in one line, the plan,
@@ -237,7 +244,8 @@ scorecard that regressed cannot land quietly.
 |---|---|
 | The brief appears on prompts that did not need one | note the prompts in the retro; the rubric lives in `kit/hooks/_prompt.mjs` (a kit change, with a test). A team that truly does not want it: `workflow.promptIntake: false`, with the reason in lessons.md |
 | The stop-check blocks, but nothing can be checked here | the agent says so in one line and the next stop goes through; add gates with `/sdlc-init` |
-| The context-budget note comes too early for your model | raise `workflow.contextWarnTokens` (1M-context models: 300000 is reasonable) |
+| Sessions fail with "You're out of usage credits" | `best` resolved to Fable and that account's Fable usage is spent; Claude Code does not fall back by itself. `/model opus` for the person; for a team that hits it often, `update <project> --session-model opus` |
+| The context-budget note, or the `/clear` line, comes too early for your model | raise `workflow.contextWarnTokens` (1M-context models: 300000 is reasonable) — a later `/clear` costs more per message and leaves more of the last task in the window |
 | A project is missing from `report` / `evals` | it is not in the registry (`~/.agent-setup/projects.json`): `agent-setup update <project>` registers it |
 | An eval run prints "errored and were not scored" | a usage or rate limit: the runner stops at the first one; rerun later. Errored runs never enter a scorecard |
 | A full eval pass would eat the week's usage | rerun only the touched skills (`--skill`), cap with `--max-runs n`, spread a full pass over days — merged scorecards keep every bucket |

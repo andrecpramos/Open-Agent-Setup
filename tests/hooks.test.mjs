@@ -3,7 +3,7 @@
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, existsSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeRepo, runHook, guard, gitIn, cleanupTemp, tempDir, writeConfig, TWO_TRUNK, HOOKS } from './helpers.mjs';
 import { parseTranscript, windowSlice, windowFacts, claimsVerification, isCorrection, windowMetrics, compareWindows, summaryLine, summaryTable, costUnits, HEAVY_TOKENS, } from '../kit/hooks/_transcript.mjs';
@@ -1033,6 +1033,70 @@ describe('context-budget', () => {
         writeConfig(repo, { workflow: { contextWarnTokens: 0 } });
         writeFileSync(file, jsonl([human('go'), usageLine(900_000)]));
         assert.equal(prompt(repo, file, `${session}-off`).stdout, '');
+    });
+    test('the agent\'s note asks for a handoff when work will remain', () => {
+        const repo = makeRepo();
+        const file = join(tempDir('as-budget-'), 't.jsonl');
+        writeFileSync(file, jsonl([human('go'), usageLine(200_000)]));
+        const text = note(prompt(repo, file, `budget-${process.pid}-${++n}`));
+        assert.match(text, /If work will remain\s+when this task ends, make the handoff \(handoff skill\) its last step/);
+        assert.match(text, /No need to comment on this note\.$/);
+    });
+    const stop = (repo, transcript, session, last = 'Done: the tests pass.') => runHook('context-budget.mjs', { hook_event_name: 'Stop', session_id: session, transcript_path: transcript, stop_hook_active: false, last_assistant_message: last }, { cwd: repo });
+    test('at the end of a turn past the budget, tells the person — never the agent — to /clear, once per band', () => {
+        const repo = makeRepo();
+        const file = join(tempDir('as-budget-'), 't.jsonl');
+        const session = `budget-${process.pid}-${++n}`;
+        writeFileSync(file, jsonl([human('go'), usageLine(100_000)]));
+        assert.equal(stop(repo, file, session).stdout, '', 'under the budget');
+        writeFileSync(file, jsonl([human('go'), usageLine(180_000)]));
+        const r = stop(repo, file, session);
+        assert.match(String(r.json?.systemMessage ?? ''), /^Context: this window is at about 180k tokens/);
+        assert.match(String(r.json?.systemMessage ?? ''), /When this task is done,\s+\/clear before the next one/);
+        assert.match(String(r.json?.systemMessage ?? ''), /Work that continues: \/handoff first/);
+        assert.equal(r.json?.hookSpecificOutput, undefined, 'nothing enters the model\'s context');
+        assert.equal(r.json?.decision, undefined, 'never blocks the stop');
+        assert.equal(stop(repo, file, session).stdout, '', 'once per band');
+        assert.match(note(prompt(repo, file, session)), /CONTEXT BUDGET/, 'the agent\'s note keeps its own band');
+        writeFileSync(file, jsonl([human('go'), usageLine(320_000)]));
+        assert.match(String(stop(repo, file, session).json?.systemMessage ?? ''), /about 320k tokens/, 'again at the next band');
+        writeFileSync(file, jsonl([human('go'), usageLine(320_000), BOUNDARY, SUMMARY]));
+        assert.equal(stop(repo, file, session).stdout, '', 'a compaction resets the window');
+        writeFileSync(file, jsonl([human('go'), usageLine(160_000)]));
+        assert.match(String(stop(repo, file, session).json?.systemMessage ?? ''), /about 160k tokens/, 'the bands start again after a reset');
+    });
+    test('stays quiet when the agent already advised /clear, and when the budget is off', () => {
+        const repo = makeRepo();
+        const file = join(tempDir('as-budget-'), 't.jsonl');
+        writeFileSync(file, jsonl([human('go'), usageLine(200_000)]));
+        assert.equal(stop(repo, file, `budget-${process.pid}-${++n}`, 'Done. This window is large: /clear before the next task.').stdout, '');
+        writeConfig(repo, { workflow: { contextWarnTokens: 0 } });
+        assert.equal(stop(repo, file, `budget-${process.pid}-${++n}`).stdout, '');
+    });
+    const start = (repo, source) => runHook('context-budget.mjs', { hook_event_name: 'SessionStart', source, session_id: `start-${process.pid}-${++n}` }, { cwd: repo });
+    test('after /clear, points the agent to the handoff the window before it left', () => {
+        const repo = makeRepo();
+        assert.equal(start(repo, 'clear').stdout, '', 'no handoff: nothing to say');
+        mkdirSync(join(repo, '.agents', 'handoffs'), { recursive: true });
+        const old = join(repo, '.agents', 'handoffs', '2026-01-01-old.md');
+        writeFileSync(old, '# Handoff — old\n');
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        utimesSync(old, yesterday, yesterday);
+        assert.equal(start(repo, 'clear').stdout, '', 'a handoff from earlier work is not this one');
+        writeFileSync(join(repo, '.agents', 'handoffs', '2026-10-19-refunds.md'), '# Handoff — refunds\n');
+        const r = start(repo, 'clear');
+        assert.equal(r.json?.hookSpecificOutput?.hookEventName, 'SessionStart');
+        assert.match(note(r), /^HANDOFF — the window before this \/clear left `\.agents\/handoffs\/2026-10-19-refunds\.md` \(written 1 min ago\)/);
+        assert.match(note(r), /If the person\s+continues that work, read it first/);
+        assert.equal(start(repo, 'startup').stdout, '', 'only after a /clear');
+        assert.equal(start(repo, 'compact').stdout, '', 'a compaction keeps its own summary');
+    });
+    test('after /clear, a living plan document counts as the handoff', () => {
+        const repo = makeRepo();
+        writeConfig(repo, { docs: { plan: 'docs/PLAN.md' } });
+        mkdirSync(join(repo, 'docs'), { recursive: true });
+        writeFileSync(join(repo, 'docs', 'PLAN.md'), '# Plan\n\n## Status\n');
+        assert.match(note(start(repo, 'clear')), /left `docs\/PLAN\.md`/);
     });
 });
 // ---------------------------------------------------------------------------

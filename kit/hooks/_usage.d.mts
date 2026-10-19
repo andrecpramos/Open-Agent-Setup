@@ -28,13 +28,23 @@ export interface Provider {
   /** The install targets (agents) that run on this provider's models. */
   agents: string[];
   source?: string;
+  /** The session model name that resolves, per account, to the orchestrator's tier (Claude Code: `best`). */
+  session?: string;
   tiers: Partial<Record<Tier, TierModel>>;
+}
+
+/** The session itself: the strongest tier the account has (`tier`, else `fallback`). */
+export interface Orchestrator {
+  tier: Tier;
+  fallback?: Tier;
+  use: string;
 }
 
 /** kit/models.json, after a project's overrides. */
 export interface ModelTable {
   asOf?: string;
   tiers?: Partial<Record<Tier, { use: string }>>;
+  orchestrator?: Orchestrator;
   families?: Record<string, string>;
   providers: Record<string, Provider>;
   prices: Record<string, PriceCard>;

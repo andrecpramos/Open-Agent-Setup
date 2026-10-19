@@ -403,7 +403,7 @@ describe('install into an existing setup (brownfield)', () => {
         assert.ok(guards.some((g) => g.m === 'Bash'));
         assert.ok(guards.some((g) => g.m === 'PowerShell'));
         const stops = s.hooks.Stop.flatMap((g) => g.hooks.map((h) => `${h.command} ${(h.args ?? []).join(' ')}`.trim()));
-        assert.deepEqual(stops, ['echo mine', 'node ${CLAUDE_PROJECT_DIR}/.agents/hooks/stop-check.mjs'], 'the project Stop hook is kept; the kit adds its own beside it');
+        assert.deepEqual(stops, ['echo mine', 'node ${CLAUDE_PROJECT_DIR}/.agents/hooks/stop-check.mjs', 'node ${CLAUDE_PROJECT_DIR}/.agents/hooks/context-budget.mjs'], 'the project Stop hook is kept; the kit adds its own beside it');
         assert.ok(s.permissions.allow.includes('Bash(npm run lint:*)'));
     });
     test('uninstall removes exactly what it added', () => {
@@ -669,13 +669,14 @@ describe('selection options', () => {
         const skills = readdirSync(join(repo, '.agents', 'skills')).sort();
         assert.deepEqual(skills, [...STANDARD, ...CORE].sort());
         assert.equal(existsSync(join(repo, '.claude', 'agents', 'docs-keeper.md')), false);
-        for (const h of ['session-eval.mjs', 'learning-signals.mjs', 'context-budget.mjs'])
+        for (const h of ['session-eval.mjs', 'learning-signals.mjs'])
             assert.equal(existsSync(join(repo, '.agents', 'hooks', h)), false, h);
-        for (const h of ['guard-git.mjs', 'stop-check.mjs', 'prompt-intake.mjs', '_transcript.mjs'])
+        for (const h of ['guard-git.mjs', 'stop-check.mjs', 'prompt-intake.mjs', 'context-budget.mjs', '_transcript.mjs'])
             assert.ok(existsSync(join(repo, '.agents', 'hooks', h)), h);
         const wired = read(join(repo, '.claude', 'settings.json'));
-        assert.doesNotMatch(wired, /session-eval|learning-signals|context-budget/);
+        assert.doesNotMatch(wired, /session-eval|learning-signals/);
         assert.match(wired, /guard-git/);
+        assert.match(wired, /context-budget/, 'the window\'s budget and the /clear advice are the developer\'s');
         assert.equal(existsSync(join(repo, '.agents', 'learnings')), false, 'no learning loop');
         const a = read(join(repo, 'AGENTS.md'));
         assert.doesNotMatch(a, /## Learning loop|sdlc-init` ·/);
@@ -1296,12 +1297,80 @@ describe('--session-model: the model Claude Code sessions start on', () => {
         runCli(['uninstall', repo]);
         assert.equal(existsSync(file) ? settings(repo).model : 'opus', 'opus', 'a model changed by hand is not the kit\'s to remove');
     });
-    test('an unknown model is refused; the install offers it when none is set', () => {
+    test('an unknown model is refused; the install names the orchestrator and the cheaper choice', () => {
         const repo = makeRepo();
         const bad = runCli(['install', repo, '--targets', 'claude', '--session-model', 'gpt-5']);
         assert.equal(bad.code, 1);
         assert.match(bad.out, /--session-model must be a Claude Code model/);
         const ok = runCli(['install', makeRepo(), '--targets', 'claude']);
-        assert.match(ok.out, /--session-model opusplan — sessions plan on Opus and build on Sonnet/);
+        assert.match(ok.out, /Sessions start on best \(fable where the account has it, else opus\): the strongest model each account has plans and routes/);
+        assert.match(ok.out, /To spend less: .*--session-model opusplan \(Opus while planning, Sonnet while building\)/);
+    });
+    test('chosen by nobody, sessions start on the orchestrator — and follow the kit; none stays none', () => {
+        const repo = makeRepo();
+        assert.equal(runCli(['install', repo, '--targets', 'agents,claude']).code, 0);
+        assert.equal(settings(repo).model, 'best', 'the strongest model the account has');
+        assert.equal(manifest(repo).selection.sessionModel, null, 'recorded as not chosen, so it follows kit/models.json');
+        const agents = read(join(repo, 'AGENTS.md'));
+        assert.match(agents, /\| \*\*orchestrator\*\* \| your own session: the brief, the plan's decisions, routing each step, checking what comes back \| `best` — `fable`, else `opus` \|/);
+        assert.match(agents, /Your session is the \*\*orchestrator\*\*: run it on that row's model/);
+        runCli(['update', repo, '--session-model', 'none']);
+        assert.equal(settings(repo).model, undefined, 'none takes it out');
+        assert.equal(manifest(repo).selection.sessionModel, 'none', 'and is remembered as a choice');
+        runCli(['update', repo]);
+        assert.equal(settings(repo).model, undefined, 'an update keeps none');
+        const measured = makeRepo();
+        runCli(['install', measured, '--setup', 'measure']);
+        assert.equal(existsSync(join(measured, '.claude', 'settings.json')) ? settings(measured).model : undefined, undefined, 'a baseline never sets a model');
+    });
+    test('the codex column names the frontier model and its fallback for the session', () => {
+        const repo = makeRepo();
+        runCli(['install', repo, '--targets', 'agents,codex']);
+        assert.match(read(join(repo, 'AGENTS.md')), /\| \*\*orchestrator\*\* \| [^|]+ \| `gpt-6-astra` · xhigh, else `gpt-6\.1-sol` \|/);
+    });
+});
+describe('permissions: what the workflow runs is approved once', () => {
+    const settings = (repo) => json(join(repo, '.claude', 'settings.json'));
+    const allow = (repo) => settings(repo).permissions?.allow ?? [];
+    test('reading git and the pull request is allowed; working-branch writes only where guard-git runs; push still asks', () => {
+        const repo = makeRepo();
+        runCli(['install', repo, '--targets', 'agents,claude']);
+        for (const r of ['Bash(git fetch:*)', 'Bash(gh pr view:*)', 'Bash(gh pr checks:*)', 'Bash(git commit:*)', 'Bash(git switch:*)'])
+            assert.ok(allow(repo).includes(r), r);
+        assert.ok(!allow(repo).some((r) => /git push|git reset|gh pr merge|gh api/.test(r)), 'nothing outward-facing or destructive');
+        assert.equal(settings(repo).defaultMode, undefined);
+        assert.equal(JSON.stringify(settings(repo)).includes('guardedAllow'), false, 'the fragment\'s own key never lands');
+        const bare = makeRepo();
+        runCli(['install', bare, '--targets', 'agents,claude', '--no-hooks']);
+        assert.ok(allow(bare).includes('Bash(git fetch:*)'));
+        assert.ok(!allow(bare).includes('Bash(git commit:*)'), 'no guard, no commit rule');
+    });
+    test("the project's gates are allowed, and follow the config on update", () => {
+        const repo = makeRepo();
+        runCli(['install', repo, '--targets', 'agents,claude']);
+        const cfgFile = join(repo, '.agents', 'sdlc.config.json');
+        const cfg = json(cfgFile);
+        cfg.gates = [
+            { id: 'lint', command: 'npm run lint' },
+            { id: 'test', command: 'NODE_ENV=test npm test' },
+            { id: 'web', command: 'cd web && pnpm vitest run' },
+            { id: 'glob', command: 'eslint src/**/*.ts' },
+            { id: 'sub', command: 'npm run check $(cat flags)' },
+            { id: 'all', command: 'make' },
+        ];
+        writeFileSync(cfgFile, JSON.stringify(cfg, null, 2));
+        assert.equal(runCli(['update', repo]).code, 0);
+        const rules = allow(repo);
+        for (const r of ['Bash(npm run lint *)', 'Bash(npm test *)', 'Bash(pnpm vitest run *)', 'Bash(make)'])
+            assert.ok(rules.includes(r), r);
+        assert.ok(!rules.some((r) => /eslint|cd web|NODE_ENV|\$\(|make \*/.test(r)), rules.join('\n'));
+        cfg.gates = [{ id: 'test', command: 'npm test' }];
+        writeFileSync(cfgFile, JSON.stringify(cfg, null, 2));
+        runCli(['update', repo]);
+        assert.ok(allow(repo).includes('Bash(npm test *)'));
+        assert.ok(!allow(repo).includes('Bash(npm run lint *)'), 'a gate taken out takes its rule with it');
+        runCli(['uninstall', repo]);
+        const file = join(repo, '.claude', 'settings.json');
+        assert.ok(!existsSync(file) || !allow(repo).includes('Bash(npm test *)'), 'uninstall removes them');
     });
 });

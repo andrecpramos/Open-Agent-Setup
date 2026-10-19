@@ -227,7 +227,7 @@
       "properties": {
         "sessionSummary": { "type": "boolean", "default": false, "description": "session-eval shows the person one line of eval metrics and one of cost at session start (a systemMessage: the model never sees it). Off by default: the numbers are the admin's, read with agent-setup evals, usage and report." },
         "verifyBeforeStop": { "type": "boolean", "default": true, "description": "stop-check blocks the end of a turn once when code changed after the last passing check." },
-        "contextWarnTokens": { "type": "integer", "minimum": 0, "default": 150000, "description": "context-budget notes the agent when a window passes this many tokens, and again at each further multiple. 0 turns it off." },
+        "contextWarnTokens": { "type": "integer", "minimum": 0, "default": 150000, "description": "context-budget notes the agent when a window passes this many tokens, and again at each further multiple, and at the end of that turn tells the person to /clear once the task is done. 0 turns both off." },
         "promptIntake": { "type": "boolean", "default": true, "description": "prompt-intake asks the agent to restate a large or risky task prompt (auth, payments, data, production, secrets) as a brief (goal, scope, acceptance, assumptions, risks) before its first edit." },
         "promptCoach": { "type": "boolean", "deprecated": true, "description": "Retired in 3.0: prompt-intake no longer coaches the developer. Has no effect; delete it." },
         "retroEvery": { "type": "integer", "minimum": 0, "default": 20, "description": "agent-setup report lists a retro as due after this many recorded context windows without one. 0 turns it off." },

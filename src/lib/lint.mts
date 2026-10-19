@@ -22,7 +22,7 @@ import { agentIndex, loadCatalog, skillDirs, skillIndex, skillsDirOf, agentFiles
 import { readVendor, specProblems } from './vendor.mjs';
 import type { Catalog } from './catalog.mjs';
 import type { VendorLock, VendorManifest } from './vendor.mjs';
-import { MODELS_FILE, isTier } from './models.mjs';
+import { MODELS_FILE, SESSION_MODEL, isTier } from './models.mjs';
 import { TIERS, normalizeModel, priceFor, readModels } from '../kit/hooks/_usage.mjs';
 import { LONG_PROMPT } from '../kit/hooks/_transcript.mjs';
 
@@ -494,6 +494,13 @@ function lintModels({ catalog, add }: { catalog: Catalog; add: AddFinding }): vo
   for (const t of TIERS) if (!raw.tiers?.[t]?.use) add('error', file, `tier "${t}" needs a \`use\` line (the AGENTS.md table shows it)`);
   for (const t of Object.keys(raw.tiers ?? {})) if (!isTier(t)) add('error', file, `unknown tier "${t}" (tiers: ${TIERS.join(', ')})`);
   for (const [k, v] of Object.entries(raw.families ?? {})) if (!k.startsWith('$') && !isTier(v)) add('error', file, `family "${k}" maps to unknown tier "${v}"`);
+  // The orchestrator is the session itself: the AGENTS.md table's first row and Claude Code's starting model.
+  const o = raw.orchestrator;
+  if (!o?.use || !isTier(o.tier)) add('error', file, '`orchestrator` needs a `tier` and a `use` line: the session\'s row in the AGENTS.md table');
+  if (o?.fallback !== undefined && !isTier(o.fallback)) add('error', file, `orchestrator fallback "${String(o.fallback)}" is not a tier (tiers: ${TIERS.join(', ')})`);
+  for (const [name, prov] of Object.entries(raw.providers ?? {})) {
+    if (prov.session !== undefined && !(name === 'anthropic' && SESSION_MODEL.test(prov.session))) add('error', file, `provider "${name}": \`session\` "${prov.session}" is not a Claude Code session model (best, fable, opus, opusplan, sonnet, haiku or a claude-* id)`);
+  }
   const priceNums = ['input', 'output', 'cacheRead', 'cacheWrite', 'cacheWrite1h'] as const;
   for (const [id, p] of Object.entries(raw.prices ?? {})) {
     if (id !== normalizeModel(id)) add('error', file, `price "${id}" must be listed under its bare id "${normalizeModel(id)}" — lookups normalise before matching`);
